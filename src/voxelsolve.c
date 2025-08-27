@@ -3,10 +3,19 @@
 
 #include <string.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <math.h>
 
 
+
+
+
+/* ----------------------------------------
+    Main types;
+    float 3d vectors should work well 
+    with GLM.
+---------------------------------------- */
 
 typedef float vs_vec3[3]; // regular vector that will be used here 
                           // (x,y,z)
@@ -24,7 +33,7 @@ typedef struct {
     float vscale;
     vs_vec3i vox_len;
 
-    size_t solve_steps; 
+    size_t solve_steps;
 
     // any mathematical function 
     // that returns float value;
@@ -52,8 +61,57 @@ typedef struct {
 
 
 
+/* ----------------------------------------
+    Basic operations with vectors
+---------------------------------------- */
 
 #define VS_VEC3_SET(to,from)( to[0] = from[0]; to[1] = from[1]; to[2] = from[2] )
+
+
+// compares two vec3 with certain precision
+inline bool cmp3(vs_vec3 a, vs_vec3 b, float prec){
+    return(
+        fabsf(a[0] - b[0]) <= prec &&
+        fabsf(a[1] - b[1]) <= prec && 
+        fabsf(a[2] - b[2]) <= prec 
+    );
+}
+
+
+#define CUBE_VLEN 8
+
+// create 8 vertex that describe a cube
+// out array will have the length of 8
+static inline void gen_cube(vs_vec3 start, float vscale, vs_vec3 * out){
+ 
+    // set all vertex in a start position
+    for(size_t i=0; i<CUBE_VLEN; ++i){
+        VS_VEC3_SET(out[i],start);
+    }
+
+    // add scale to certain vertex to make a cube
+    
+    // verts[0] untouched
+    out[1][0] += vscale;
+    out[2][1] += vscale; 
+    out[3][0] += vscale; out[3][1] += vscale;
+
+    
+    out[4][2] += vscale;
+    out[5][2] += vscale;
+    out[6][2] += vscale;
+    out[7][2] += vscale;
+
+    // verts[4] untouched
+    out[5][0] += vscale;
+    out[6][1] += vscale; 
+    out[7][0] += vscale; out[3][1] += vscale;
+}
+
+
+
+
+
 
 
 
@@ -79,32 +137,10 @@ static inline bool is_edge_voxel(
         vs_voxelsolve_con con
         )
 {
-    const size_t CUBE_VLEN = 8;
-
-    vs_vec3 verts[CUBE_VLEN];
+    vs_vec3 verts[8];
     float vals[CUBE_VLEN];
     
-    for(size_t i=0; i<CUBE_VLEN; ++i){
-        VS_VEC3_SET(verts[i],start);
-    }
-    
-    // unfold cube
-
-    // verts[0] untouched
-    verts[1][0] += con.vscale;
-    verts[2][1] += con.vscale; 
-    verts[3][0] += con.vscale; verts[3][1] += con.vscale;
-
-    
-    verts[4][2] += con.vscale;
-    verts[5][2] += con.vscale;
-    verts[6][2] += con.vscale;
-    verts[7][2] += con.vscale;
-
-    // verts[4] untouched
-    verts[5][0] += con.vscale;
-    verts[6][1] += con.vscale; 
-    verts[7][0] += con.vscale; verts[3][1] += con.vscale;
+    gen_cube(start,con.vscale,verts);
 
     float first_val = con.f(verts[0], con.farg, con.fargc);
 
@@ -178,14 +214,110 @@ static size_t edge_solve(
 
 
 
+static size_t add_vertex( 
+        vs_voxelsolve_data * data,
+        vs_vec3 v,
+        float prec,
+        )
+{
+    // compare every existing vertex with new one;
+    // if close enough, merge with old vertex.
+    for(size_t i=0; i<data->vertex_len; ++i){
+        if(cmp3(v,data->vertex[i]) return i;
+    }
+    
+    // if it's really new, add to buffer
+    size_t offt = data->vertex_len;
+    ++data->vertex_len;
+    VS_VEC3_SET(data->vertex[i],v);
+
+    return offt;
+}
+
+
+
+static int32_t add_triangle(
+    vs_voxelsolve_data * data,
+    vs_vec3 a,
+    vs_vec3 b,
+    vs_vec3 c,
+    float prec
+    )
+{
+    if(
+        cmp3(a,b, prec) ||
+        cmp3(b,c, prec) ||
+        cmp3(c,a, prec)
+    ) return -1;
+
+    size_t ai = add_vertex(data,a, prec);
+    size_t bi = add_vertex(data,b, prec);
+    size_t ci = add_vertex(data,c, prec);
+
+    size_t offt = data->triangles_len;
+    data->triangles[offt][0] = ai;
+    data->triangles[offt][1] = bi;
+    data->triangles[offt][2] = ci;
+
+    ++data->triangles_len;
+    return offt;
+}
+
+
+
+
+
+static inline bool opposite3(vs_vec3 a, vs_vec3 b){
+}
+
+/*
+    bro I really hate that
+
+    make triangle from abstract set of dots
+    this one might be a little complicated.
+    
+    CHOOSING THE CLOSEST ONE IS NOT AN OPTION.
+
+
+    We check another vertex in he same plane as the CURRENT one.
+    If it's not opposite, we merge them.
+
+
+    There can be a case, when oppoite points stay on the same 
+    plane appearently. That's an issue which can lead to errors.
+    To solve that, we can already work only with vertex 
+    wich are connected by the edge. It makes the solution a bit easier.
+
+    connection with the non-opposite vertex is in priority.
+
+    Maybe it's easier to work with local coordinates (even [0,1] vertex)
+    until triangulation is done.
+*/
+static void dots_triang(vs_vec3 * dots){
+}
+
+
+
+
+
+
+
 static size_t voxel_solve(
         vs_vec3 start,
         vs_voxelsolve_data * data,
         vs_voxelsolve_con con
         )
 {
+    // generated 8 vertices 
+    vs_vec3 verts[8];
+    gen_cube(start,con.vscale,verts);
 
+    
 }
+
+
+
+
 
 
 
@@ -205,12 +337,12 @@ void voxelsolve_isosurface(
                 doti[0] = con.offt[0] + xi*con.vscale;
                 doti[1] = con.offt[1] + xi*con.vscale;
                 doti[2] = con.offt[2] + xi*con.vscale;
+                
 
 
                 if(is_edge_voxel(doti,con)){
                     voxel_solve(doti, data, con);
                 }
-
             }
         }
     }
