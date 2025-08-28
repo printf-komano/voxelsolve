@@ -44,7 +44,7 @@ typedef struct {
             );       
     float * farg;
     size_t fargc;
-    float f_edge; // value where line is going
+    float f_threshold; // value where line is going
 
 } vs_voxelsolve_con;
 
@@ -77,7 +77,6 @@ inline bool cmp3(vs_vec3 a, vs_vec3 b, float prec){
     );
 }
 
-
 #define CUBE_VLEN 8
 
 // create 8 vertex that describe a cube
@@ -108,14 +107,6 @@ static inline void gen_cube(vs_vec3 start, float vscale, vs_vec3 * out){
     out[7][0] += vscale; out[3][1] += vscale;
 }
 
-
-
-
-
-
-
-
-
 static inline void lerp3(
         vs_vec3 start,
         vs_vec3 end,
@@ -132,7 +123,12 @@ static inline void lerp3(
 
 
 
-static inline bool is_edge_voxel(
+
+/* ----------------------------------------
+    Main algorythm
+---------------------------------------- */
+
+static inline bool is_border_voxel(
         vs_vec3 start,
         vs_voxelsolve_con con
         )
@@ -150,8 +146,8 @@ static inline bool is_edge_voxel(
         // f_edge will result in calling 
         // voxel solve method for this point
         if(
-            (val > con.f_edge && first_val < con.f_edge) || 
-            (val < con.f_edge && first_val > con.f_edge) 
+            (val > con.f_threshold && first_val < con.f_threshold) || 
+            (val < con.f_threshold && first_val > con.f_threshold) 
         ) return true;
     }
 
@@ -162,11 +158,19 @@ static inline bool is_edge_voxel(
 
 
 
-
+/*
+    Iterative solution. Points move slowly towards certain direction,
+    looking for f() value changing between ABOVE and BELOW f_threshold
+    
+    The result is be present as LOCAL UNSCALED coords
+    (x,y,z) where x,y,z in (0;1).
+    We can calculate real coordinates of the point, but values (0,1)
+    are easier to manipulate.
+*/
 static size_t edge_solve(
-        vs_vec3 start,
-        vs_vec3 dir,
-        vs_vec3 out,
+        vs_vec3 start,  // starting point (in real coordinates)
+        vs_vec3 dir,    // direction (1-vercor)
+        vs_vec3 out,    // RESULT. offset with LOCAL UNSCALED coords
         vs_voxelsolve_con con
         )
 {
@@ -191,8 +195,8 @@ static size_t edge_solve(
         float val = con.f(point, con.farg, con.fargc);
         
         if(
-            (val > con.f_edge && last_val < con.f_edge) || 
-            (val < con.f_edge && last_val > con.f_edge) 
+            (val > con.f_threshold && last_val < con.f_threshold) || 
+            (val < con.f_threshold && last_val > con.f_threshold) 
         ){
             float last_val = val; // evaluate again 
                                   // (after another solution found)
@@ -203,10 +207,10 @@ static size_t edge_solve(
 
     if(solutions==0) return 0;
 
-    float real_offt = (sum_offt / (float)solutions) * con.vscale;
-    out[0] = start[0] + dir[0] * real_offt;
-    out[1] = start[1] + dir[1] * real_offt;
-    out[2] = start[2] + dir[2] * real_offt;
+    float avg_offt = (sum_offt / (float)solutions);
+    out[0] = start[0] + dir[0] * avg_offt;
+    out[1] = start[1] + dir[1] * avg_offt;
+    out[2] = start[2] + dir[2] * avg_offt;
     
     return solutions;
 }
@@ -253,7 +257,6 @@ static int32_t add_triangle(
     size_t ai = add_vertex(data,a, prec);
     size_t bi = add_vertex(data,b, prec);
     size_t ci = add_vertex(data,c, prec);
-
     size_t offt = data->triangles_len;
     data->triangles[offt][0] = ai;
     data->triangles[offt][1] = bi;
@@ -269,6 +272,9 @@ static int32_t add_triangle(
 
 static inline bool opposite3(vs_vec3 a, vs_vec3 b){
 }
+
+
+
 
 /*
     bro I really hate that
