@@ -62,8 +62,14 @@ typedef struct {
 
 
 /* ----------------------------------------
-    Basic operations with vectors
+    Basic operations
 ---------------------------------------- */
+
+
+inline bool cmpf(float a, float b, float prec){
+     return (fabsf(a - b) <= prec);
+}
+
 
 #define VS_VEC3_SET(to,from)( to[0] = from[0]; to[1] = from[1]; to[2] = from[2] )
 
@@ -270,8 +276,20 @@ static int32_t add_triangle(
 
 
 
-static inline bool opposite3(vs_vec3 a, vs_vec3 b){
+#define pl0 0.0f
+#define pl1 1.0f
+
+// check if 2 points share at least one plane 
+// (xy) (xz) (yz)
+static inline bool is_atplane3(vs_vec3 a, vs_vec3 b, float prec){
+    bool ret = false;
+    for(size_t i=0; i<3; ++i){
+        ret |=  ( (cmpf(a[i],pl0,prec) && (cmpf(b[i],pl0,prec) ) ||
+                ( (cmpf(a[i],pl1,prec) && (cmpf(b[i],pl1,prec) ) ;
+    }
+    return ret;
 }
+
 
 
 
@@ -298,6 +316,11 @@ static inline bool opposite3(vs_vec3 a, vs_vec3 b){
 
     Maybe it's easier to work with local coordinates (even [0,1] vertex)
     until triangulation is done.
+
+
+
+    We choose a random dot. 
+    Then, we follow connections between dots to form a
 */
 static void dots_triang(vs_vec3 * dots){
 }
