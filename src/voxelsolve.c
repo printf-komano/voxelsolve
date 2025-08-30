@@ -125,6 +125,107 @@ static inline void lerp3(
     out[2] = start[2]  +  (end[2] - start[2]) * v;
 }
 
+static inline float dist3(vs_vec3 a, vs_vec3 b){
+    return sqrt(
+            powf(a[0]-b[0],2.0f) +
+            powf(a[1]-b[1],2.0f) +
+            powf(a[2]-b[2],2.0f)
+    );
+}
+
+
+
+
+
+
+
+/* ----------------------------------------
+    Triangulation
+    algo to turn a set of dots into triangular mesh
+---------------------------------------- */
+
+
+static inline size_t nearest3(vs_vec3 start, vs_vec3 * v, size_t vlen){
+    float min_dist = dist3(start,v[0]);
+    size_t ret = 0;
+
+    for(size_t i=1; i<vlen; ++i){
+        float new_dist = dist3(start,v[i]);
+        if(min_dist < new_dist){
+            ret = i;
+            min_dist = new_dist;
+        }
+    }
+    return ret;
+}
+
+
+
+
+
+/*
+    bro I really hate that
+
+    make triangle from abstract set of dots
+    this one might be a little complicated.
+    
+    CHOOSING THE CLOSEST ONE IS NOT AN OPTION.
+
+
+    We check another vertex in he same plane as the CURRENT one.
+    If it's not opposite, we merge them.
+
+
+    There can be a case, when oppoite points stay on the same 
+    plane appearently. That's an issue which can lead to errors.
+    To solve that, we can already work only with vertex 
+    wich are connected by the edge. It makes the solution a bit easier.
+
+    connection with the non-opposite vertex is in priority.
+
+    Maybe it's easier to work with local coordinates (even [0,1] vertex)
+    until triangulation is done.
+
+
+
+    We choose a random dot. 
+    Then, we follow connections between dots to form a
+*/
+
+
+
+/*
+    New idea for triangulation method: cube-edge unwrap.
+    Because we are using voxelsolve method, 
+    all calculated dots will be located on the cube edges. 
+
+
+    So, we can unwrap the cube and build triangles in that way.
+    There may be some complications, because all dots 
+    are placed actually between cube's faces, but at least 
+    the algo idea is more obvious than previous ones.
+*/
+
+static void dots_triang(
+        vs_vec3 * dots,
+        size_t dots_len,
+        vs_tri * out_buffer,
+        size_t out_len,
+        )
+{
+    if(dots_len < 3) return;
+    // select the dot with minimal distance from (0,0,0)
+    vs_vec3 vzero = {0.0f, 0.0f, 0.0f};
+    size_t firsti = nearest3(vzero, dots, dots_len);
+
+}
+
+
+
+
+
+
+
 
 
 
@@ -289,44 +390,6 @@ static inline bool is_atplane3(vs_vec3 a, vs_vec3 b, float prec){
     }
     return ret;
 }
-
-
-
-
-
-/*
-    bro I really hate that
-
-    make triangle from abstract set of dots
-    this one might be a little complicated.
-    
-    CHOOSING THE CLOSEST ONE IS NOT AN OPTION.
-
-
-    We check another vertex in he same plane as the CURRENT one.
-    If it's not opposite, we merge them.
-
-
-    There can be a case, when oppoite points stay on the same 
-    plane appearently. That's an issue which can lead to errors.
-    To solve that, we can already work only with vertex 
-    wich are connected by the edge. It makes the solution a bit easier.
-
-    connection with the non-opposite vertex is in priority.
-
-    Maybe it's easier to work with local coordinates (even [0,1] vertex)
-    until triangulation is done.
-
-
-
-    We choose a random dot. 
-    Then, we follow connections between dots to form a
-*/
-static void dots_triang(vs_vec3 * dots){
-}
-
-
-
 
 
 
