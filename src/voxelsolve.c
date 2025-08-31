@@ -187,12 +187,18 @@ static inline int32_t first_varied3(vs_vec3 v, float prec){
     const size_t ret_offt = ret_max+1;
 
     int32_t ret = (
-        (ret_offt+0) * ( !cmpf(v[0],VS_CUBE_START,prec && !cmpf(v[0],VS_CUBE_END,prec) ) + // x 
-        (ret_offt+1) * ( !cmpf(v[1],VS_CUBE_START,prec && !cmpf(v[1],VS_CUBE_END,prec) ) + // y
-        (ret_offt+2) * ( !cmpf(v[0],VS_CUBE_START,prec && !cmpf(v[0],VS_CUBE_END,prec) )   // z
+        (ret_offt+0) * ( !cmpf(v[0],VS_CUBE_START,prec) 
+                && !cmpf(v[0],VS_CUBE_END,prec) ) + // x
+
+        (ret_offt+1) * ( !cmpf(v[1],VS_CUBE_START,prec) 
+                && !cmpf(v[1],VS_CUBE_END,prec) ) + // y
+        
+        (ret_offt+2) * ( !cmpf(v[2],VS_CUBE_START,prec) 
+                && !cmpf(v[2],VS_CUBE_END,prec) )   // z
     );
+
     if( ret-ret_offt > 2 ) return -1;
-    return ret - ret_offt;
+    else return ret - ret_offt;
 }
 
 
@@ -202,15 +208,17 @@ static inline bool is_neighbour_edge(vs_vec3 a, vs_vec3 b, float prec){
     size_t varb = first_varied3(b,prec);
     
     if(
-            vara < 0 || varb < 0 || // dot is not located correctly
-            vara == varb // it's definitely on the same edge (not neighbour)
-                         // or on the opposite one
+        vara < 0 || varb < 0 // dot is not located correctly
     ) return false;
 
     return(
-        
+        vara == varb    // it's definitely on the same edge (not neighbour)
+                        // or on the opposite one
     );
 }
+
+
+
 
 
 /*
@@ -425,13 +433,15 @@ static int32_t add_triangle(
 
 
 
+
+
 // check if 2 points share at least one plane 
 // (xy) (xz) (yz)
 static inline bool is_atplane3(vs_vec3 a, vs_vec3 b, float prec){
     bool ret = false;
     for(size_t i=0; i<3; ++i){
-        ret |=  ( (cmpf(a[i],pl0,prec) && (cmpf(b[i],pl0,prec) ) ||
-                ( (cmpf(a[i],pl1,prec) && (cmpf(b[i],pl1,prec) ) ;
+        ret |=  ( (cmpf(a[i],pl0,prec)) && (cmpf(b[i],pl0,prec)) ) ||
+                ( (cmpf(a[i],pl1,prec)) && (cmpf(b[i],pl1,prec)) ) ;
     }
     return ret;
 }
@@ -439,7 +449,7 @@ static inline bool is_atplane3(vs_vec3 a, vs_vec3 b, float prec){
 
 
 
-static size_t voxel_solve(
+static inline size_t voxel_solve(
         vs_vec3 start,
         vs_voxelsolve_data * data,
         vs_voxelsolve_con con
@@ -448,7 +458,8 @@ static size_t voxel_solve(
     // generated 8 vertices 
     vs_vec3 verts[8];
     gen_cube(start,con.vscale,verts);
-
+    
+    vs_vec3 points; 
     
 }
 
