@@ -134,6 +134,16 @@ static inline float dist3(vs_vec3 a, vs_vec3 b){
 }
 
 
+static inline float scalar_diff3(vs_vec3 a, vs_vec3 b){
+    return(
+            a[0]-b[0]
+            a[1]-b[1]
+            a[2]-b[2]
+    );
+}
+
+
+
 
 
 
@@ -143,6 +153,10 @@ static inline float dist3(vs_vec3 a, vs_vec3 b){
     Triangulation
     algo to turn a set of dots into triangular mesh
 ---------------------------------------- */
+
+
+#define VS_CUBE_START 0.0f
+#define VS_CUBE_END 1.0f
 
 
 static inline size_t nearest3(vs_vec3 start, vs_vec3 * v, size_t vlen){
@@ -161,6 +175,42 @@ static inline size_t nearest3(vs_vec3 start, vs_vec3 * v, size_t vlen){
 
 
 
+/*
+    Find the index of first varied coordinate.
+    Because all points located on the edges, 
+    there's the only one index possible.
+
+    other 2 values should be equal to 0 or 1.
+*/
+static inline int32_t first_varied3(vs_vec3 v, float prec){
+    const size_t ret_max = 2;
+    const size_t ret_offt = ret_max+1;
+
+    int32_t ret = (
+        (ret_offt+0) * ( !cmpf(v[0],VS_CUBE_START,prec && !cmpf(v[0],VS_CUBE_END,prec) ) + // x 
+        (ret_offt+1) * ( !cmpf(v[1],VS_CUBE_START,prec && !cmpf(v[1],VS_CUBE_END,prec) ) + // y
+        (ret_offt+2) * ( !cmpf(v[0],VS_CUBE_START,prec && !cmpf(v[0],VS_CUBE_END,prec) )   // z
+    );
+    if( ret-ret_offt > 2 ) return -1;
+    return ret - ret_offt;
+}
+
+
+
+static inline bool is_neighbour_edge(vs_vec3 a, vs_vec3 b, float prec){
+    size_t vara = first_varied3(a,prec);
+    size_t varb = first_varied3(b,prec);
+    
+    if(
+            vara < 0 || varb < 0 || // dot is not located correctly
+            vara == varb // it's definitely on the same edge (not neighbour)
+                         // or on the opposite one
+    ) return false;
+
+    return(
+        
+    );
+}
 
 
 /*
@@ -374,11 +424,6 @@ static int32_t add_triangle(
 }
 
 
-
-
-
-#define pl0 0.0f
-#define pl1 1.0f
 
 // check if 2 points share at least one plane 
 // (xy) (xz) (yz)
