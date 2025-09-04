@@ -62,7 +62,7 @@ typedef struct {
 
 
 /* ----------------------------------------
-    Basic operations
+    Math operations and constants
 ---------------------------------------- */
 
 
@@ -144,6 +144,11 @@ static inline float scalar_diff3(vs_vec3 a, vs_vec3 b){
 
 
 
+// cube faces 
+
+#define VS_CF_
+
+
 
 
 
@@ -222,47 +227,46 @@ static inline bool is_neighbour_edge(vs_vec3 a, vs_vec3 b, float prec){
 
 
 /*
-    bro I really hate that
-
-    make triangle from abstract set of dots
-    this one might be a little complicated.
-    
-    CHOOSING THE CLOSEST ONE IS NOT AN OPTION.
+    Update: new idea for dots connection. 
 
 
-    We check another vertex in he same plane as the CURRENT one.
-    If it's not opposite, we merge them.
+    If cube has 3 or 4 solutions, triangles are being 
+    built in the most classical way.
 
 
-    There can be a case, when oppoite points stay on the same 
-    plane appearently. That's an issue which can lead to errors.
-    To solve that, we can already work only with vertex 
-    wich are connected by the edge. It makes the solution a bit easier.
+    If not, follow the algorythm:
 
-    connection with the non-opposite vertex is in priority.
+    Cube has vertices ("CV") placed on (0-1) coordinates. 
+        ----------------------------------------------------------
+        3-triangulation 
 
-    Maybe it's easier to work with local coordinates (even [0,1] vertex)
-    until triangulation is done.
+        1. We pick a CVi and chck it's value. If value is greater
+           than f_threshold, SKIP CVi (ignore CV inside isosurface).
 
+        2. If not, check all solutions on the neighbour edges (form array).
 
+        3. There's always gonnabe 0-3 dots; 
+           If 3 dots connected to CVi, build triangle
+           WITHOUT ADDING CONNECTIONS and skip the step.
+           Else, if number of dots less then 3, add to queue.
 
-    We choose a random dot. 
-    Then, we follow connections between dots to form a
+        4. Continue this process in a loop until all CV precessed.
+        ----------------------------------------------------------
+        Additional 4-triangulation
+
+        5. At this point, there're left some additional dots 
+        also requiring connection.
+
+        6. Cheoose a dot[i] and the nearest neighbour dots[j] ONLY
+        from the neighbour faces (not edges this time). Build a triangle.
+        EXCLUDE all triangulated dots[j] from i-iteration 
+        (they still can be connected).
+        EXCLUDE current dot[i] from j-iteraon (cannot be connected at all)
+
+        7. End of algorythm.
+
 */
 
-
-
-/*
-    New idea for triangulation method: cube-edge unwrap.
-    Because we are using voxelsolve method, 
-    all calculated dots will be located on the cube edges. 
-
-
-    So, we can unwrap the cube and build triangles in that way.
-    There may be some complications, because all dots 
-    are placed actually between cube's faces, but at least 
-    the algo idea is more obvious than previous ones.
-*/
 
 static void dots_triang(
         vs_vec3 * dots,
@@ -276,6 +280,7 @@ static void dots_triang(
     vs_vec3 vzero = {0.0f, 0.0f, 0.0f};
     size_t firsti = nearest3(vzero, dots, dots_len);
 
+   
 }
 
 
