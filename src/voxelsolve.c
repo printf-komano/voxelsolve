@@ -61,6 +61,17 @@ typedef struct {
 
 
 
+typedef struct {
+    vs_vec3 v_global[8];
+    float vscale;
+
+    vs_vec3 v_local[8]; // coordinates from 0 to 1
+} vs_cube;
+
+
+static const vs_vec3 vs_vec3_zero = {0.0f, 0.0f, 0.0f};
+
+
 /* ----------------------------------------
     Math operations and constants
 ---------------------------------------- */
@@ -113,6 +124,23 @@ static inline void gen_cube(vs_vec3 start, float vscale, vs_vec3 * out){
     out[7][0] += vscale; out[3][1] += vscale;
 }
 
+static vs_cube vs_cubef(vs_vec3 start, float vscale){
+    vs_cube ret;
+    
+    ret.vscale = vscale;
+
+    gen_cube(start,vscale,ret.v_global); // generate real cube corrdinates
+    gen_cube(vs_vec3_zero,vscale,ret.v_local); // generate local cube corrdinates
+    
+    return ret;
+}
+
+
+
+
+
+
+
 static inline void lerp3(
         vs_vec3 start,
         vs_vec3 end,
@@ -144,9 +172,6 @@ static inline float scalar_diff3(vs_vec3 a, vs_vec3 b){
 
 
 
-// cube faces 
-
-#define VS_CF_
 
 
 
@@ -162,6 +187,7 @@ static inline float scalar_diff3(vs_vec3 a, vs_vec3 b){
 
 #define VS_CUBE_START 0.0f
 #define VS_CUBE_END 1.0f
+
 
 
 static inline size_t nearest3(vs_vec3 start, vs_vec3 * v, size_t vlen){
@@ -240,7 +266,7 @@ static inline bool is_neighbour_edge(vs_vec3 a, vs_vec3 b, float prec){
         ----------------------------------------------------------
         3-triangulation 
 
-        1. We pick a CVi and chck it's value. If value is greater
+        1. We pick a CVi and check it's value. If value is greater
            than f_threshold, SKIP CVi (ignore CV inside isosurface).
 
         2. If not, check all solutions on the neighbour edges (form array).
@@ -269,18 +295,36 @@ static inline bool is_neighbour_edge(vs_vec3 a, vs_vec3 b, float prec){
 
 
 static void dots_triang(
+        vs_vec start,
+        vs_vec* cv,
         vs_vec3 * dots,
         size_t dots_len,
         vs_tri * out_buffer,
         size_t out_len,
         )
-{
+{   
+    // unable to build figure
     if(dots_len < 3) return;
-    // select the dot with minimal distance from (0,0,0)
-    vs_vec3 vzero = {0.0f, 0.0f, 0.0f};
-    size_t firsti = nearest3(vzero, dots, dots_len);
 
-   
+    // sipliest variant of the algorythm *(add only 1 trangle)
+    else if(dots_len == 3) {
+        out_len = 1;
+        out_buffer = (vs_tri*) malloc(out_len * sizeof(vs_tri));
+    }
+    
+    
+    /*  1  */
+    vs_vec3 cv[CUBE_VLEN];
+    float cv_values[CUBE_VLEN];
+    gen_cube(start,con.vscale,cv);    
+
+    for(size_t i=1; i<CUBE_VLEN; ++i){
+        
+    }
+
+
+
+
 }
 
 
