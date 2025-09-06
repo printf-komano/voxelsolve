@@ -69,8 +69,35 @@ typedef struct {
 } vs_cube;
 
 
-static const vs_vec3 vs_vec3_zero = {0.0f, 0.0f, 0.0f};
 
+typedef struct vs_solution(){
+    vs_vec3 start; 
+    vs_vec3 end;
+
+    size_t intersections;
+    vs_vec3 value;
+}
+
+
+
+static const CUBE_VLEN = 8;
+static const vs_vec3 VS_VEC3_ZERO = {0.0f, 0.0f, 0.0f};
+static const vs_vec3 CUBE1[8] = {
+    // bottom face
+    {0.0f, 0.0f, 0.0f},
+    {1.0f, 0.0f, 0.0f},
+    {0.0f, 0.0f, 1.0f},
+    {1.0f, 0.0f, 1.0f},
+
+    // top face 
+    {0.0f, 1.0f, 0.0f},
+    {1.0f, 1.0f, 0.0f},
+    {0.0f, 1.0f, 1.0f},
+    {1.0f, 1.0f, 1.0f},
+};
+
+#define CUBE_START 0.0f
+#define CUBE_END 1.0f
 
 /* ----------------------------------------
     Math operations and constants
@@ -94,50 +121,18 @@ inline bool cmp3(vs_vec3 a, vs_vec3 b, float prec){
     );
 }
 
-#define CUBE_VLEN 8
-
 // create 8 vertex that describe a cube
 // out array will have the length of 8
 static inline void gen_cube(vs_vec3 start, float vscale, vs_vec3 * out){
- 
-    // set all vertex in a start position
-    for(size_t i=0; i<CUBE_VLEN; ++i){
-        VS_VEC3_SET(out[i],start);
+    
+    // basically, it's just offseted and scaled cube-1
+    for(size_t i=0; i< CUBE_VLEN; ++i){
+        out[i][0] = start[0] + CUBE1[0][0] * vscale;
+        out[i][1] = start[1] + CUBE1[0][1] * vscale;
+        out[i][2] = start[2] + CUBE1[0][2] * vscale;
+
     }
-
-    // add scale to certain vertex to make a cube
-    
-    // verts[0] untouched
-    out[1][0] += vscale;
-    out[2][1] += vscale; 
-    out[3][0] += vscale; out[3][1] += vscale;
-
-    
-    out[4][2] += vscale;
-    out[5][2] += vscale;
-    out[6][2] += vscale;
-    out[7][2] += vscale;
-
-    // verts[4] untouched
-    out[5][0] += vscale;
-    out[6][1] += vscale; 
-    out[7][0] += vscale; out[3][1] += vscale;
 }
-
-static vs_cube vs_cubef(vs_vec3 start, float vscale){
-    vs_cube ret;
-    
-    ret.vscale = vscale;
-
-    gen_cube(start,vscale,ret.v_global); // generate real cube corrdinates
-    gen_cube(vs_vec3_zero,vscale,ret.v_local); // generate local cube corrdinates
-    
-    return ret;
-}
-
-
-
-
 
 
 
@@ -185,10 +180,6 @@ static inline float scalar_diff3(vs_vec3 a, vs_vec3 b){
 ---------------------------------------- */
 
 
-#define VS_CUBE_START 0.0f
-#define VS_CUBE_END 1.0f
-
-
 
 static inline size_t nearest3(vs_vec3 start, vs_vec3 * v, size_t vlen){
     float min_dist = dist3(start,v[0]);
@@ -218,14 +209,14 @@ static inline int32_t first_varied3(vs_vec3 v, float prec){
     const size_t ret_offt = ret_max+1;
 
     int32_t ret = (
-        (ret_offt+0) * ( !cmpf(v[0],VS_CUBE_START,prec) 
-                && !cmpf(v[0],VS_CUBE_END,prec) ) + // x
+        (ret_offt+0) * ( !cmpf(v[0],CUBE_START,prec) 
+                && !cmpf(v[0],CUBE_END,prec) ) + // x
 
-        (ret_offt+1) * ( !cmpf(v[1],VS_CUBE_START,prec) 
-                && !cmpf(v[1],VS_CUBE_END,prec) ) + // y
+        (ret_offt+1) * ( !cmpf(v[1],CUBE_START,prec) 
+                && !cmpf(v[1],CUBE_END,prec) ) + // y
         
-        (ret_offt+2) * ( !cmpf(v[2],VS_CUBE_START,prec) 
-                && !cmpf(v[2],VS_CUBE_END,prec) )   // z
+        (ret_offt+2) * ( !cmpf(v[2],CUBE_START,prec) 
+                && !cmpf(v[2],CUBE_END,prec) )   // z
     );
 
     if( ret-ret_offt > 2 ) return -1;
@@ -277,6 +268,7 @@ static inline bool is_neighbour_edge(vs_vec3 a, vs_vec3 b, float prec){
            Else, if number of dots less then 3, add to queue.
 
         4. Continue this process in a loop until all CV precessed.
+        
         ----------------------------------------------------------
         Additional 4-triangulation
 
@@ -284,22 +276,20 @@ static inline bool is_neighbour_edge(vs_vec3 a, vs_vec3 b, float prec){
         also requiring connection.
 
         6. Cheoose a dot[i] and the nearest neighbour dots[j] ONLY
-        from the neighbour faces (not edges this time). Build a triangle.
-        EXCLUDE all triangulated dots[j] from i-iteration 
-        (they still can be connected).
-        EXCLUDE current dot[i] from j-iteraon (cannot be connected at all)
+           from the neighbour faces (not edges this time). Build a triangle.
+           EXCLUDE all triangulated dots[j] from i-iteration 
+           (they still can be connected).
+           EXCLUDE current dot[i] from j-iteraon (cannot be connected at all)
 
         7. End of algorythm.
-
 */
 
 
 static void dots_triang(
-        vs_vec start,
-        vs_vec* cv,
-        vs_vec3 * dots,
-        size_t dots_len,
-        vs_tri * out_buffer,
+        bool * cv_used,         // f(cv) < threshold (must be bool[8])
+        vs_vec3 * dots,         // solutions
+        size_t dots_len,        
+        vs_tri * out_buffer,    // result
         size_t out_len,
         )
 {   
@@ -524,6 +514,8 @@ void voxelsolve_isosurface(
         vs_voxelsolve_con con
         )
 {
+    VS_CUBE1 = gen_cube(VS_VEC3_ZERO, );
+
     vs_vec3 doti;
 
     for(size_t xi=0; xi<con.vox_len[0];++xi){
@@ -534,8 +526,6 @@ void voxelsolve_isosurface(
                 doti[0] = con.offt[0] + xi*con.vscale;
                 doti[1] = con.offt[1] + xi*con.vscale;
                 doti[2] = con.offt[2] + xi*con.vscale;
-                
-
 
                 if(is_edge_voxel(doti,con)){
                     voxel_solve(doti, data, con);
