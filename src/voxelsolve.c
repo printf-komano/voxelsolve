@@ -26,7 +26,6 @@ typedef size_t vs_tri[3]; // triangle described by 3 index
 
 
 
-
 typedef struct {
     vs_vec3 offt; 
 
@@ -49,7 +48,6 @@ typedef struct {
 } vs_voxelsolve_con;
 
 
-
 typedef struct {
     vs_vec3 * vertex;
     size_t vertex_len;
@@ -59,24 +57,17 @@ typedef struct {
 } vs_voxelsolve_data;
 
 
-
-
-typedef struct {
-    vs_vec3 v_global[8];
-    float vscale;
-
-    vs_vec3 v_local[8]; // coordinates from 0 to 1
-} vs_cube;
-
-
-
 typedef struct vs_solution(){
-    vs_vec3 start; 
-    vs_vec3 end;
+    size_t cvi[2];          // cube vertex index; start and end of 
+                            // the fragment where equation was solved
 
-    size_t intersections;
-    vs_vec3 value;
+    size_t intersections;   // number of intersections of the
+                            // edge and real surface
+
+    vs_vec3 dot;            // average calculated value
 }
+
+
 
 
 
@@ -99,6 +90,8 @@ static const vs_vec3 CUBE1[8] = {
 #define CUBE_START 0.0f
 #define CUBE_END 1.0f
 
+
+
 /* ----------------------------------------
     Math operations and constants
 ---------------------------------------- */
@@ -109,7 +102,11 @@ inline bool cmpf(float a, float b, float prec){
 }
 
 
-#define VS_VEC3_SET(to,from)( to[0] = from[0]; to[1] = from[1]; to[2] = from[2] )
+#define VS_VEC3_SET(to,from)(   \
+        to[0] = from[0];        \
+        to[1] = from[1];        \
+        to[2] = from[2]         \
+)                               
 
 
 // compares two vec3 with certain precision
@@ -126,7 +123,7 @@ inline bool cmp3(vs_vec3 a, vs_vec3 b, float prec){
 static inline void gen_cube(vs_vec3 start, float vscale, vs_vec3 * out){
     
     // basically, it's just offseted and scaled cube-1
-    for(size_t i=0; i< CUBE_VLEN; ++i){
+    for(size_t i=0; i<CUBE_VLEN; ++i){
         out[i][0] = start[0] + CUBE1[0][0] * vscale;
         out[i][1] = start[1] + CUBE1[0][1] * vscale;
         out[i][2] = start[2] + CUBE1[0][2] * vscale;
@@ -371,27 +368,32 @@ static inline bool is_border_voxel(
     We can calculate real coordinates of the point, but values (0,1)
     are easier to manipulate.
 */
-static size_t edge_solve(
-        vs_vec3 start,  // starting point (in real coordinates)
-        vs_vec3 dir,    // direction (1-vercor)
-        vs_vec3 out,    // RESULT. offset with LOCAL UNSCALED coords
-        vs_voxelsolve_con con
+static void edge_solve(
+        size_t starti,          // starting point (in real coordinates)
+        size_t endi,            // direction (1-vercor)
+        vs_voxelsolve_con con   // config is needed here for scale, offt and f()
         )
 {
+    vs_solution out;            // RESULT. offset with LOCAL UNSCALED coords
+
     size_t solutions = 0;
-    float sum_offt = 0.0f;  // summ of all solutions.
-                            // each solution described
-                            // by value in range [0;1]
+    float sum_offt = 0.0f;      // summ of all solutions.
+                                // each solution described
+                                // by value in range [0;1]
 
-    float step_size = con.vscale / (float)con.solve_steps;
+    float step_size = con.vscale / (float)con.solve_steps; // real scale of the step
 
-    vs_vec3 point; // iterable point
-    VS_VEC3_SET(point,start);
-    
+    vs_vec3 dot;        // iterable value
+    vs_vec3 dot_real;   // f(dot_real)
+
+    dot_real[0] = 
+        
     float val = con.f(point, con.farg, con.fargc);
     float last_val = val;
 
     for (size_t i=1; i<=con.solve_steps; ++i){
+        progress = step_size * (float)i;
+
         point[0] += dir[0] * step_size;
         point[1] += dir[1] * step_size;
         point[2] += dir[2] * step_size;
@@ -409,14 +411,20 @@ static size_t edge_solve(
         }
     }
 
+
+
     if(solutions==0) return 0;
 
     float avg_offt = (sum_offt / (float)solutions);
-    out[0] = start[0] + dir[0] * avg_offt;
-    out[1] = start[1] + dir[1] * avg_offt;
-    out[2] = start[2] + dir[2] * avg_offt;
+
+    // form solution
+    out.dot[0] = dir[0] * avg_offt;
+    out.dot[1] = dir[1] * avg_offt;
+    out.dot[2] = dir[2] * avg_offt;
+
+    out.start =
     
-    return solutions;
+    return out;
 }
 
 
