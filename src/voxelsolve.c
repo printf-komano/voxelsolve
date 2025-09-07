@@ -57,6 +57,10 @@ typedef struct {
 } vs_voxelsolve_data;
 
 
+
+
+
+
 typedef struct vs_solution(){
     size_t cvi[2];          // cube vertex index; start and end of 
                             // the fragment where equation was solved
@@ -65,6 +69,16 @@ typedef struct vs_solution(){
                             // edge and real surface
 
     vs_vec3 dot;            // average calculated value
+}
+
+// if at leas one cv is shared, return true
+bool vs_solution_sharedcv(vs_solution a, vs_solution b){
+    return(
+            a.cvi[0] == b.cvi[0] ||
+            a.cvi[0] == b.cvi[1] ||
+            a.cvi[1] == b.cvi[0] ||
+            a.cvi[1] == b.cvi[1]
+    );
 }
 
 
@@ -132,18 +146,22 @@ static inline void gen_cube(vs_vec3 start, float vscale, vs_vec3 * out){
 }
 
 
-
+// linear interpolation with vs_vec3 output
 static inline void lerp3(
         vs_vec3 start,
         vs_vec3 end,
-        vs_vec3 out,
-        float v
+        float v,
+        vs_vec3 out
         )
 {
     out[0] = start[0]  +  (end[0] - start[0]) * v;
     out[1] = start[1]  +  (end[1] - start[1]) * v;
     out[2] = start[2]  +  (end[2] - start[2]) * v;
 }
+
+
+
+
 
 static inline float dist3(vs_vec3 a, vs_vec3 b){
     return sqrt(
@@ -156,8 +174,8 @@ static inline float dist3(vs_vec3 a, vs_vec3 b){
 
 static inline float scalar_diff3(vs_vec3 a, vs_vec3 b){
     return(
-            a[0]-b[0]
-            a[1]-b[1]
+            a[0]-b[0] +
+            a[1]-b[1] +
             a[2]-b[2]
     );
 }
@@ -166,15 +184,14 @@ static inline float scalar_diff3(vs_vec3 a, vs_vec3 b){
 
 
 
+static inline void local_to_real3(vs_vec3 local, vs_vec3 out, vs_voxelsolve_con con){
+    out[0] = local[0]*con.vscale + con.offt[0];
+    out[1] = local[1]*con.vscale + con.offt[1];
+    out[2] = local[2]*con.vscale + con.offt[2];
+}
 
 
 
-
-
-/* ----------------------------------------
-    Triangulation
-    algo to turn a set of dots into triangular mesh
----------------------------------------- */
 
 
 
@@ -239,79 +256,15 @@ static inline bool is_neighbour_edge(vs_vec3 a, vs_vec3 b, float prec){
 
 
 
-
-/*
-    Update: new idea for dots connection. 
-
-
-    If cube has 3 or 4 solutions, triangles are being 
-    built in the most classical way.
-
-
-    If not, follow the algorythm:
-
-    Cube has vertices ("CV") placed on (0-1) coordinates. 
-        ----------------------------------------------------------
-        3-triangulation 
-
-        1. We pick a CVi and check it's value. If value is greater
-           than f_threshold, SKIP CVi (ignore CV inside isosurface).
-
-        2. If not, check all solutions on the neighbour edges (form array).
-
-        3. There's always gonnabe 0-3 dots; 
-           If 3 dots connected to CVi, build triangle
-           WITHOUT ADDING CONNECTIONS and skip the step.
-           Else, if number of dots less then 3, add to queue.
-
-        4. Continue this process in a loop until all CV precessed.
-        
-        ----------------------------------------------------------
-        Additional 4-triangulation
-
-        5. At this point, there're left some additional dots 
-        also requiring connection.
-
-        6. Cheoose a dot[i] and the nearest neighbour dots[j] ONLY
-           from the neighbour faces (not edges this time). Build a triangle.
-           EXCLUDE all triangulated dots[j] from i-iteration 
-           (they still can be connected).
-           EXCLUDE current dot[i] from j-iteraon (cannot be connected at all)
-
-        7. End of algorythm.
-*/
-
-
-static void dots_triang(
-        bool * cv_used,         // f(cv) < threshold (must be bool[8])
-        vs_vec3 * dots,         // solutions
-        size_t dots_len,        
-        vs_tri * out_buffer,    // result
-        size_t out_len,
-        )
-{   
-    // unable to build figure
-    if(dots_len < 3) return;
-
-    // sipliest variant of the algorythm *(add only 1 trangle)
-    else if(dots_len == 3) {
-        out_len = 1;
-        out_buffer = (vs_tri*) malloc(out_len * sizeof(vs_tri));
+// check if 2 points share at least one plane 
+// (xy) (xz) (yz)
+static inline bool is_atplane3(vs_vec3 a, vs_vec3 b, float prec){
+    bool ret = false;
+    for(size_t i=0; i<3; ++i){
+        ret |=  ( (cmpf(a[i],pl0,prec)) && (cmpf(b[i],pl0,prec)) ) ||
+                ( (cmpf(a[i],pl1,prec)) && (cmpf(b[i],pl1,prec)) ) ;
     }
-    
-    
-    /*  1  */
-    vs_vec3 cv[CUBE_VLEN];
-    float cv_values[CUBE_VLEN];
-    gen_cube(start,con.vscale,cv);    
-
-    for(size_t i=1; i<CUBE_VLEN; ++i){
-        
-    }
-
-
-
-
+    return ret;
 }
 
 
@@ -320,13 +273,8 @@ static void dots_triang(
 
 
 
-
-
-
-
-
 /* ----------------------------------------
-    Main algorythm
+    Additional algorythm steps 
 ---------------------------------------- */
 
 static inline bool is_border_voxel(
@@ -357,8 +305,6 @@ static inline bool is_border_voxel(
 
 
 
-
-
 /*
     Iterative solution. Points move slowly towards certain direction,
     looking for f() value changing between ABOVE and BELOW f_threshold
@@ -368,7 +314,7 @@ static inline bool is_border_voxel(
     We can calculate real coordinates of the point, but values (0,1)
     are easier to manipulate.
 */
-static void edge_solve(
+static vs_solution edge_solve(
         size_t starti,          // starting point (in real coordinates)
         size_t endi,            // direction (1-vercor)
         vs_voxelsolve_con con   // config is needed here for scale, offt and f()
@@ -376,29 +322,30 @@ static void edge_solve(
 {
     vs_solution out;            // RESULT. offset with LOCAL UNSCALED coords
 
-    size_t solutions = 0;
+    size_t intersections = 0;
     float sum_offt = 0.0f;      // summ of all solutions.
                                 // each solution described
                                 // by value in range [0;1]
 
-    float step_size = con.vscale / (float)con.solve_steps; // real scale of the step
+    float step_size = 1.0f / (float)con.solve_steps; // local scale of the step
 
     vs_vec3 dot;        // iterable value
     vs_vec3 dot_real;   // f(dot_real)
 
-    dot_real[0] = 
-        
-    float val = con.f(point, con.farg, con.fargc);
+
+    // calling the function for the first time
+    local_to_real3(CUBE1[starti],dot_real,con);
+    float val = con.f(dot_real, con.farg, con.fargc);
     float last_val = val;
 
+    // start iterration
     for (size_t i=1; i<=con.solve_steps; ++i){
+        // get the coordinates of the point
         progress = step_size * (float)i;
+        lerp3(CUBE1[starti],CUBE1[endi], progress, dot);
+        local_to_real3(dot,dot_real,con);
 
-        point[0] += dir[0] * step_size;
-        point[1] += dir[1] * step_size;
-        point[2] += dir[2] * step_size;
-
-        float val = con.f(point, con.farg, con.fargc);
+        float val = con.f(dot_real, con.farg, con.fargc);
         
         if(
             (val > con.f_threshold && last_val < con.f_threshold) || 
@@ -406,23 +353,19 @@ static void edge_solve(
         ){
             float last_val = val; // evaluate again 
                                   // (after another solution found)
-            sum_offt = (float)i / (float)con.solve_steps;
-            ++solutions;
+            sum_offt += progress;
+            ++intersections;
         }
     }
 
 
-
-    if(solutions==0) return 0;
-
-    float avg_offt = (sum_offt / (float)solutions);
+    float avg_offt = (sum_offt / (float)intersections);
 
     // form solution
-    out.dot[0] = dir[0] * avg_offt;
-    out.dot[1] = dir[1] * avg_offt;
-    out.dot[2] = dir[2] * avg_offt;
-
-    out.start =
+    lerp3(CUBE1[starti],CUBE1[endi], avg_offt, out.dot);
+    out.start = starti;
+    out.end = endi;
+    out.intersections = intersections;
     
     return out;
 }
@@ -481,20 +424,89 @@ static int32_t add_triangle(
 
 
 
+/* ----------------------------------------
+    Triangulation   
+---------------------------------------- */
 
-// check if 2 points share at least one plane 
-// (xy) (xz) (yz)
-static inline bool is_atplane3(vs_vec3 a, vs_vec3 b, float prec){
-    bool ret = false;
-    for(size_t i=0; i<3; ++i){
-        ret |=  ( (cmpf(a[i],pl0,prec)) && (cmpf(b[i],pl0,prec)) ) ||
-                ( (cmpf(a[i],pl1,prec)) && (cmpf(b[i],pl1,prec)) ) ;
+/*
+    Update: new idea for dots connection. 
+
+
+    If cube has 3 or 4 solutions, triangles are being 
+    built in the most classical way.
+
+
+    If not, follow the algorythm:
+
+    Cube has vertices ("CV") placed on (0-1) coordinates. 
+        ----------------------------------------------------------
+        3-triangulation 
+
+        1. We pick a CVi and check it's value. If value is greater
+           than f_threshold, SKIP CVi (ignore CV inside isosurface).
+
+        2. If not, check all solutions on the neighbour edges (form array).
+
+        3. There's always gonnabe 0-3 dots; 
+           If 3 dots connected to CVi, build triangle
+           WITHOUT ADDING CONNECTIONS and skip the step.
+           Else, if number of dots less then 3, add to queue.
+
+        4. Continue this process in a loop until all CV precessed.
+        
+        ----------------------------------------------------------
+        Additional 4-triangulation
+
+        5. At this point, there're left some additional dots 
+        also requiring connection.
+
+        6. Cheoose a dot[i] and the nearest neighbour dots[j] ONLY
+           from the neighbour faces (not edges this time). Build a triangle.
+           EXCLUDE all triangulated dots[j] from i-iteration 
+           (they still can be connected).
+           EXCLUDE current dot[i] from j-iteraon (cannot be connected at all)
+
+        7. End of algorythm.
+*/
+static void dots_triang(
+        vs_voxelsolve_data * data,
+        vs_solution * sol,          // solutions
+        size_t sol_len,        
+        vs_voxelsolve_con con
+        )
+{   
+    // unable to build figure
+    if(sol_len < 3) return;
+
+    // sipliest variant of the algorythm *(add only 1 trangle)
+    else if(dots_len == 3) {
+        out_len = 1;
+        out_buffer = (vs_tri*) malloc(out_len * sizeof(vs_tri));
+
+
     }
-    return ret;
+    
+    
+    /*  1  */
+    // TODO: write this part
+    vs_vec3 cv[CUBE_VLEN];
+    float cv_values[CUBE_VLEN];
+    gen_cube(start,con.vscale,cv);    
+
+    for(size_t i=1; i<CUBE_VLEN; ++i){
+        
+    }
+
 }
 
 
 
+
+
+
+/* ----------------------------------------
+    Main algorythm    
+---------------------------------------- */
 
 static inline size_t voxel_solve(
         vs_vec3 start,
@@ -509,12 +521,6 @@ static inline size_t voxel_solve(
     vs_vec3 points; 
     
 }
-
-
-
-
-
-
 
 
 void voxelsolve_isosurface(
