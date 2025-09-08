@@ -38,12 +38,15 @@ typedef struct {
     // that returns float value;
     float (*f)(
             vs_vec3,
-            float *, // f() additional arguments
-            size_t // f() arguments count
+            float *,    // f() additional arguments
+            size_t      // f() arguments count
             );       
     float * farg;
     size_t fargc;
-    float f_threshold; // value where line is going
+    float f_threshold;  // value where line is going
+    float prec;         // precision of vector operations
+                        // usually don't affect performance but
+                        // takes part in float/vector comparisons
 
 } vs_voxelsolve_con;
 
@@ -61,7 +64,7 @@ typedef struct {
 
 
 
-typedef struct vs_solution(){
+typedef struct {
     size_t cvi[2];          // cube vertex index; start and end of 
                             // the fragment where equation was solved
 
@@ -69,10 +72,10 @@ typedef struct vs_solution(){
                             // edge and real surface
 
     vs_vec3 dot;            // average calculated value
-}
+} vs_solution;
 
 // if at leas one cv is shared, return true
-bool vs_solution_sharedcv(vs_solution a, vs_solution b){
+static bool vs_solution_sharedcv(vs_solution a, vs_solution b){
     return(
             a.cvi[0] == b.cvi[0] ||
             a.cvi[0] == b.cvi[1] ||
@@ -460,7 +463,7 @@ static int32_t add_triangle(
         5. At this point, there're left some additional dots 
         also requiring connection.
 
-        6. Cheoose a dot[i] and the nearest neighbour dots[j] ONLY
+        6. Choose a dot[i] and the nearest neighbour dots[j] ONLY
            from the neighbour faces (not edges this time). Build a triangle.
            EXCLUDE all triangulated dots[j] from i-iteration 
            (they still can be connected).
@@ -468,34 +471,71 @@ static int32_t add_triangle(
 
         7. End of algorythm.
 */
+
+static inline bool shared_cv(){}
 static void dots_triang(
         vs_voxelsolve_data * data,
-        vs_solution * sol,          // solutions
-        size_t sol_len,        
-        vs_voxelsolve_con con
+        vs_solution * sol,          // solutions 
+        size_t sol_len,       
+        bool * cv_outside,          // f(cv) < f_threshold (8 array)
+        vs_voxelsolve_con con,
         )
 {   
     // unable to build figure
     if(sol_len < 3) return;
 
-    // sipliest variant of the algorythm *(add only 1 trangle)
+    // simpliest variant of the algorythm *(add only 1 trangle)
     else if(dots_len == 3) {
-        out_len = 1;
-        out_buffer = (vs_tri*) malloc(out_len * sizeof(vs_tri));
+        add_triangle(data, sol[0].dot, sol[1].dot, sol[2].dot, con.prec);
+        return;
+    }
+    
+    bool queue [8] = { [0 ... 7] = true }; // unprocessed dots to connect
 
+    // 3-TRIANGULATION
+    // find all triangles on the edges
+    for(size_t i=0; i<(sol_len-2); ++i){
+        size_t nbrs[3] = {i,0,0}; // neighbours of the dot (including itself)
+        size_t nbrs_len = 1;
 
+        //look for all dots able to 3-triangulate
+        for(size_t j=i+1; j<sol_len; ++j){
+            if(nbrs_len == 3 || !queue[i]) continue; //end dot[i] processing
+
+            // add all dots on the same edge to 3-triang queue
+            if( 
+                    vs_solution_sharedcv(sol[i],sol[j]) &&
+                    queue[j]
+            ){
+
+                //push index in array
+                nbrs[nbrs_len] = j;
+                ++nbrs_len;
+            }
+        }
+
+        // if found all 3 dots, triangulate
+        // and disable dots in further algorythm
+        if(nbrs_len == 3){
+
+            // no longer avilable
+            queue[ nbrs[0] ] = false;
+            queue[ nbrs[1] ] = false;
+            queue[ nbrs[2] ] = false;
+
+            add_triangle(
+                    data, 
+                    sol[nbrs[0]].dot, sol[nbrs[1]].dot, sol[nbrs[2]].dot,
+                    con.prec
+                    );
+        }
     }
     
     
-    /*  1  */
-    // TODO: write this part
-    vs_vec3 cv[CUBE_VLEN];
-    float cv_values[CUBE_VLEN];
-    gen_cube(start,con.vscale,cv);    
+    // 4-TRIANGULATION 
+    // find and triangulate the rest
 
-    for(size_t i=1; i<CUBE_VLEN; ++i){
-        
-    }
+
 
 }
 
