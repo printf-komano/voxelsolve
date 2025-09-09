@@ -259,9 +259,10 @@ static inline bool is_neighbour_edge(vs_vec3 a, vs_vec3 b, float prec){
 
 
 
-// check if 2 points share at least one plane 
+// check if 2 points are located at the same cube face
 // (xy) (xz) (yz)
-static inline bool is_atplane3(vs_vec3 a, vs_vec3 b, float prec){
+// (one of the coords matches)
+static inline bool is_shared_face(vs_vec3 a, vs_vec3 b, float prec){
     bool ret = false;
     for(size_t i=0; i<3; ++i){
         ret |=  ( (cmpf(a[i],pl0,prec)) && (cmpf(b[i],pl0,prec)) ) ||
@@ -317,13 +318,13 @@ static inline bool is_border_voxel(
     We can calculate real coordinates of the point, but values (0,1)
     are easier to manipulate.
 */
-static vs_solution edge_solve(
+static void edge_solve(
         size_t starti,          // starting point (in real coordinates)
         size_t endi,            // direction (1-vercor)
+        vs_solution * out,      // RESULT. offset with LOCAL UNSCALED coords
         vs_voxelsolve_con con   // config is needed here for scale, offt and f()
         )
-{
-    vs_solution out;            // RESULT. offset with LOCAL UNSCALED coords
+{  
 
     size_t intersections = 0;
     float sum_offt = 0.0f;      // summ of all solutions.
@@ -365,12 +366,11 @@ static vs_solution edge_solve(
     float avg_offt = (sum_offt / (float)intersections);
 
     // form solution
-    lerp3(CUBE1[starti],CUBE1[endi], avg_offt, out.dot);
-    out.start = starti;
-    out.end = endi;
-    out.intersections = intersections;
+    lerp3(CUBE1[starti],CUBE1[endi], avg_offt, out->dot);
+    out->start = starti;
+    out->end = endi;
+    out->intersections = intersections;
     
-    return out;
 }
 
 
@@ -467,7 +467,7 @@ static int32_t add_triangle(
            from the neighbour faces (not edges this time). Build a triangle.
            EXCLUDE all triangulated dots[j] from i-iteration 
            (they still can be connected).
-           EXCLUDE current dot[i] from j-iteraon (cannot be connected at all)
+           EXCLUDE current dot[i] from j-iteration (cannot be connected at all)
 
         7. End of algorythm.
 */
@@ -481,6 +481,8 @@ static void dots_triang(
         vs_voxelsolve_con con,
         )
 {   
+    float prec = con.prec; 
+
     // unable to build figure
     if(sol_len < 3) return;
 
@@ -531,9 +533,41 @@ static void dots_triang(
         }
     }
     
-    
+
     // 4-TRIANGULATION 
     // find and triangulate the rest
+    for(size_t i=0; i<sol_len; ++i){
+        if( !queue[i] ) continue; //ignore already tiangulated dots        
+        uint32_t tri[3] = {i,-1,-1}; // basically the copy of previous step
+        
+
+        // try to find all triangle components
+        for(size_t j=i+1; j<sol_len; ++j){
+            if( !queue[j] ) continue; // idk what I am doing at this point
+                                      // do that dudes really have ti be ignored?(((
+            
+            // look for one neighbour-face dot 
+            if( tri[1]<0 && is_shared_face(dot[i],dot[j],prec) ){
+                tri[1] = j;
+            }
+            
+            // look for one non-neighbour-face dot 
+            else if( tri[2]<0 && !is_shared_face(dot[i],dot[j],prec) ){
+                tri[2] = j;
+            }
+        }
+        
+        // able to build a triangle
+        if( tri[1]>=0 && tri[2]>=0 ){
+            queue[i] = false;
+            add_triangle(
+                    data, 
+                    sol[nbrs[0]].dot, sol[nbrs[1]].dot, sol[nbrs[2]].dot,
+                    con.prec
+                    );
+        }
+
+    }
 
 
 
@@ -558,17 +592,20 @@ static inline size_t voxel_solve(
     vs_vec3 verts[8];
     gen_cube(start,con.vscale,verts);
     
-    vs_vec3 points; 
+    vs_solution * dots;
+    size_t dots_len;
+
+    
     
 }
 
 
-void voxelsolve_isosurface(
+void voxelsolve(
         vs_voxelsolve_data * data,
         vs_voxelsolve_con con
         )
 {
-    VS_CUBE1 = gen_cube(VS_VEC3_ZERO, );
+    //VS_CUBE1 = gen_cube(VS_VEC3_ZERO, );
 
     vs_vec3 doti;
 
