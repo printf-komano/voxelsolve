@@ -88,7 +88,7 @@ static bool vs_solution_sharedcv(vs_solution a, vs_solution b){
 
 
 
-static const CUBE_VLEN = 8;
+static const size_t CUBE_VLEN = 8;
 static const vs_vec3 VS_VEC3_ZERO = {0.0f, 0.0f, 0.0f};
 static const vs_vec3 CUBE1[8] = {
     // bottom face
@@ -187,7 +187,7 @@ static inline float scalar_diff3(vs_vec3 a, vs_vec3 b){
 
 
 
-static inline void local_to_real3(vs_vec3 local, vs_vec3 out, vs_voxelsolve_con con){
+static inline void local_to_real3(float* local, float* out, vs_voxelsolve_con con){
     out[0] = local[0]*con.vscale + con.offt[0];
     out[1] = local[1]*con.vscale + con.offt[1];
     out[2] = local[2]*con.vscale + con.offt[2];
@@ -265,8 +265,8 @@ static inline bool is_neighbour_edge(vs_vec3 a, vs_vec3 b, float prec){
 static inline bool is_shared_face(vs_vec3 a, vs_vec3 b, float prec){
     bool ret = false;
     for(size_t i=0; i<3; ++i){
-        ret |=  ( (cmpf(a[i],pl0,prec)) && (cmpf(b[i],pl0,prec)) ) ||
-                ( (cmpf(a[i],pl1,prec)) && (cmpf(b[i],pl1,prec)) ) ;
+        ret |= ( (cmpf(a[i],CUBE_START,prec)) && (cmpf(b[i],CUBE_START,prec)) ) ||
+               ( (cmpf(a[i],CUBE_END,prec)) && (cmpf(b[i],CUBE_END,prec)) ) ;
     }
     return ret;
 }
@@ -291,7 +291,7 @@ static inline bool is_border_voxel(
     
     gen_cube(start,con.vscale,verts);
 
-    float first_val = con.f(verts[0], con.farg, con.fargc);
+    float firstv = con.f(verts[0], con.farg, con.fargc);
 
     for(size_t i=1; i<CUBE_VLEN; ++i){
         float vi = con.f(verts[i], con.farg, con.fargc);
@@ -299,8 +299,8 @@ static inline bool is_border_voxel(
         // f_edge will result in calling 
         // voxel solve method for this point
         if(
-            (val > con.f_threshold && first_val < con.f_threshold) || 
-            (val < con.f_threshold && first_val > con.f_threshold) 
+            (vi > con.f_threshold && firstv < con.f_threshold) || 
+            (vi < con.f_threshold && firstv > con.f_threshold) 
         ) return true;
     }
 
@@ -345,7 +345,7 @@ static void edge_solve(
     // start iterration
     for (size_t i=1; i<=con.solve_steps; ++i){
         // get the coordinates of the point
-        progress = step_size * (float)i;
+        float progress = step_size * (float)i;
         lerp3(CUBE1[starti],CUBE1[endi], progress, dot);
         local_to_real3(dot,dot_real,con);
 
@@ -367,31 +367,33 @@ static void edge_solve(
 
     // form solution
     lerp3(CUBE1[starti],CUBE1[endi], avg_offt, out->dot);
-    out->start = starti;
-    out->end = endi;
+    out->cvi[0] = starti;
+    out->cvi[1] = endi;
     out->intersections = intersections;
     
 }
 
 
 
-
+    
 static size_t add_vertex( 
         vs_voxelsolve_data * data,
         vs_vec3 v,
-        float prec,
+        float prec
         )
 {
     // compare every existing vertex with new one;
     // if close enough, merge with old vertex.
     for(size_t i=0; i<data->vertex_len; ++i){
-        if(cmp3(v,data->vertex[i]) return i;
+        if(cmp3(v,data->vertex[i],prec)) return i;
     }
     
     // if it's really new, add to buffer
     size_t offt = data->vertex_len;
     ++data->vertex_len;
-    VS_VEC3_SET(data->vertex[i],v);
+    data->vertex[offt][0] = v[0];
+    data->vertex[offt][1] = v[1];
+    data->vertex[offt][2] = v[1];
 
     return offt;
 }
@@ -471,14 +473,12 @@ static int32_t add_triangle(
 
         7. End of algorythm.
 */
-
-static inline bool shared_cv(){}
 static void dots_triang(
         vs_voxelsolve_data * data,
         vs_solution * sol,          // solutions 
         size_t sol_len,       
         bool * cv_outside,          // f(cv) < f_threshold (8 array)
-        vs_voxelsolve_con con,
+        vs_voxelsolve_con con
         )
 {   
     float prec = con.prec; 
@@ -487,7 +487,7 @@ static void dots_triang(
     if(sol_len < 3) return;
 
     // simpliest variant of the algorythm *(add only 1 trangle)
-    else if(dots_len == 3) {
+    else if(sol_len == 3) {
         add_triangle(data, sol[0].dot, sol[1].dot, sol[2].dot, con.prec);
         return;
     }
@@ -547,12 +547,12 @@ static void dots_triang(
                                       // do that dudes really have ti be ignored?(((
             
             // look for one neighbour-face dot 
-            if( tri[1]<0 && is_shared_face(dot[i],dot[j],prec) ){
+            if( tri[1]<0 && is_shared_face(sol[i].dot,sol[j].dot, prec) ){
                 tri[1] = j;
             }
             
             // look for one non-neighbour-face dot 
-            else if( tri[2]<0 && !is_shared_face(dot[i],dot[j],prec) ){
+            else if( tri[2]<0 && !is_shared_face(sol[i].dot,sol[j].dot,prec) ){
                 tri[2] = j;
             }
         }
@@ -562,7 +562,7 @@ static void dots_triang(
             queue[i] = false;
             add_triangle(
                     data, 
-                    sol[nbrs[0]].dot, sol[nbrs[1]].dot, sol[nbrs[2]].dot,
+                    sol[tri[0]].dot, sol[tri[1]].dot, sol[tri[2]].dot,
                     con.prec
                     );
         }
@@ -618,7 +618,7 @@ void voxelsolve(
                 doti[1] = con.offt[1] + xi*con.vscale;
                 doti[2] = con.offt[2] + xi*con.vscale;
 
-                if(is_edge_voxel(doti,con)){
+                if(is_border_voxel(doti,con)){
                     voxel_solve(doti, data, con);
                 }
             }
