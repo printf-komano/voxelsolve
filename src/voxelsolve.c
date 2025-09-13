@@ -137,26 +137,28 @@ inline bool cmp3(vs_vec3 a, vs_vec3 b, float prec){
 
 // create 8 vertex that describe a cube
 // out array will have the length of 8
-static inline void gen_cube(vs_vec3 start, float vscale, vs_vec3 * out){
+static inline void gen_cube(
+        const vs_vec3 start,
+        const float vscale,
+        vs_vec3 out
+        ){
     
     // basically, it's just offseted and scaled cube-1
     for(size_t i=0; i<CUBE_VLEN; ++i){
         out[i][0] = start[0] + CUBE1[0][0] * vscale;
         out[i][1] = start[1] + CUBE1[0][1] * vscale;
         out[i][2] = start[2] + CUBE1[0][2] * vscale;
-
     }
 }
 
 
 // linear interpolation with vs_vec3 output
 static inline void lerp3(
-        vs_vec3 start,
-        vs_vec3 end,
+        const vs_vec3 start,
+        const vs_vec3 end,
         float v,
-        vs_vec3 out
-        )
-{
+        vs_vec3 * out
+){
     out[0] = start[0]  +  (end[0] - start[0]) * v;
     out[1] = start[1]  +  (end[1] - start[1]) * v;
     out[2] = start[2]  +  (end[2] - start[2]) * v;
@@ -242,7 +244,7 @@ static inline int32_t first_varied3(vs_vec3 v, float prec){
 
 
 
-static inline bool is_neighbour_edge(vs_vec3 a, vs_vec3 b, float prec){
+static inline bool is_shared_edge(vs_vec3 a, vs_vec3 b, float prec){
     size_t vara = first_varied3(a,prec);
     size_t varb = first_varied3(b,prec);
     
@@ -269,6 +271,43 @@ static inline bool is_shared_face(vs_vec3 a, vs_vec3 b, float prec){
                ( (cmpf(a[i],CUBE_END,prec)) && (cmpf(b[i],CUBE_END,prec)) ) ;
     }
     return ret;
+}
+
+
+
+
+
+
+// calculate normal for triangle 
+static void tri_norm(
+    // three dots
+    vs_vec3 a,
+    vs_vec3 b,
+    vs_vec3 c,
+    
+    float scale,
+    vs_vec3 out // out 
+){
+    vs_vec3 p; // ab
+    vs_vec3 q; // ac
+
+    // calculate two vectors thad describe
+    // edges of the triangle
+    p[0] = b[0] - a[0];
+    p[1] = b[1] - a[1];
+
+    q[0] = c[0] - a[0];
+    q[1] = c[1] - a[1];
+
+
+    vs_vec3 cross;
+    cross[0] = p[1]*q[2] - p[2]*q[1];
+    cross[1] = p[0]*q[2] - p[2]*q[0];
+    cross[2] = p[0]*q[1] - p[1]*q[0];
+
+    cross[0] *= scale;
+    cross[1] *= scale;
+    cross[2] *= scale;
 }
 
 
@@ -598,6 +637,7 @@ static inline size_t voxel_solve(
     
     
 }
+
 
 
 void voxelsolve(
