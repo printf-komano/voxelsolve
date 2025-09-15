@@ -92,34 +92,34 @@ static const size_t CUBE_VLEN = 8;
 static const vs_vec3 VS_VEC3_ZERO = {0.0f, 0.0f, 0.0f};
 static const vs_vec3 CUBE1[8] = {
     // bottom face
-    {0.0f, 0.0f, 0.0f},     // 0
-    {1.0f, 0.0f, 0.0f},     // 1
-    {0.0f, 0.0f, 1.0f},     // 2
-    {1.0f, 0.0f, 1.0f},     // 3
+    {0.0f, 0.0f, 0.0f},
+    {1.0f, 0.0f, 0.0f},
+    {0.0f, 0.0f, 1.0f},
+    {1.0f, 0.0f, 1.0f},
 
     // top face 
-    {0.0f, 1.0f, 0.0f},     // 4
-    {1.0f, 1.0f, 0.0f},     // 5
-    {0.0f, 1.0f, 1.0f},     // 6
-    {1.0f, 1.0f, 1.0f},     // 7
+    {0.0f, 1.0f, 0.0f},
+    {1.0f, 1.0f, 0.0f},
+    {0.0f, 1.0f, 1.0f},
+    {1.0f, 1.0f, 1.0f},
+};
+
+// equations directions to cover all the edges
+static const vs_vec3 CUBE1_EQDIR[8] = {
+    // bottom face
+    {0.0f, 0.0f, 0.0f},
+    {1.0f, 0.0f, 0.0f},
+    {0.0f, 0.0f, 1.0f},
+    {1.0f, 0.0f, 1.0f},
+
+    // top face 
+    {0.0f, 1.0f, 0.0f},
+    {1.0f, 1.0f, 0.0f},
+    {0.0f, 1.0f, 1.0f},
+    {1.0f, 1.0f, 1.0f},
 };
 
 
-/*
-    Pairs of vertex index (from CUBE1).
-    Start-end combination to to describe each cube
-    edge (12 in total). Being used to solve the equations.
-*/
-static const size_t EDGESOLVE_PAIRS[12][2] = {
-    {0, 1}, {0, 2}, {0, 4}, // (0,0,0)
-    {7, 3}, {7, 5}, {7, 6}, // (1,1,1)
-                            
-    {4, 5}, {4, 6},         // (0,1,0)
-    {3, 1}, {7, 2},         // (1,0,1)
-    
-    {1, 5},                 // (1,0,0)
-    {6, 2}                  // (0,1,1)
-} 
 
 
 
@@ -367,10 +367,7 @@ static inline bool is_border_voxel(
 static void edge_solve(
         size_t starti,          // starting point (in real coordinates)
         size_t endi,            // direction (1-vercor)
-        
         vs_solution * out,      // RESULT. offset with LOCAL UNSCALED coords
-        size_t * out_len,
-        
         vs_voxelsolve_con con   // config is needed here for scale, offt and f()
         )
 {  
@@ -641,23 +638,8 @@ static inline size_t voxel_solve(
     vs_vec3 verts[8];
     gen_cube(start,con.vscale,verts);
     
-
-    for(size_t i=0; i<12; ++i){
-        vs_solution * dots;
-        size_t dots_len;
-
-        edge_solve(
-                EDGESOLVE_PAIRS[i][0],
-                EDGESOLVE_PAIRS[i][1],
-                dots,
-                &dots_len,
-                con
-        );
-
-        dots_triang(data, dots dots_len, /*TODO: bool arr*/, con);
-    }
-    
-
+    vs_solution * dots;
+    size_t dots_len;
 
     
     
