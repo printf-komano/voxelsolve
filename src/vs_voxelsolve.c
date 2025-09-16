@@ -88,49 +88,14 @@ static bool vs_solution_sharedcv(vs_solution a, vs_solution b){
 
 
 
-static const size_t CUBE_VLEN = 8;
-static const vs_vec3 VS_VEC3_ZERO = {0.0f, 0.0f, 0.0f};
-static const vs_vec3 CUBE1[8] = {
-    // bottom face
-    {0.0f, 0.0f, 0.0f},     // 0
-    {1.0f, 0.0f, 0.0f},     // 1
-    {0.0f, 0.0f, 1.0f},     // 2
-    {1.0f, 0.0f, 1.0f},     // 3
-
-    // top face 
-    {0.0f, 1.0f, 0.0f},     // 4
-    {1.0f, 1.0f, 0.0f},     // 5
-    {0.0f, 1.0f, 1.0f},     // 6
-    {1.0f, 1.0f, 1.0f},     // 7
-};
-
-
-/*
-    Pairs of vertex index (from CUBE1).
-    Start-end combination to to describe each cube
-    edge (12 in total). Being used to solve the equations.
-*/
-static const size_t EDGESOLVE_PAIRS[12][2] = {
-    {0, 1}, {0, 2}, {0, 4}, // (0,0,0)
-    {7, 3}, {7, 5}, {7, 6}, // (1,1,1)
-                            
-    {4, 5}, {4, 6},         // (0,1,0)
-    {3, 1}, {7, 2},         // (1,0,1)
-    
-    {1, 5},                 // (1,0,0)
-    {6, 2}                  // (0,1,1)
-} 
-
-
-
-#define CUBE_START 0.0f
-#define CUBE_END 1.0f
-
-
-
 /* ----------------------------------------
     Math operations and constants
 ---------------------------------------- */
+
+const vs_vec3 vs_xup = {1.0f,0.0f,0.0f};
+const vs_vec3 vs_yup = {0.0f,1.0f,0.0f};
+const vs_vec3 vs_zup = {0.0f,0.0f,1.0f};
+
 
 
 inline bool cmpf(float a, float b, float prec){
@@ -205,6 +170,43 @@ static inline float scalar_diff3(vs_vec3 a, vs_vec3 b){
 }
 
 
+
+
+static const size_t CUBE_VLEN = 8;
+static const vs_vec3 VS_VEC3_ZERO = {0.0f, 0.0f, 0.0f};
+static const vs_vec3 CUBE1[8] = {
+    // bottom face
+    {0.0f, 0.0f, 0.0f},     // 0
+    {1.0f, 0.0f, 0.0f},     // 1
+    {0.0f, 0.0f, 1.0f},     // 2
+    {1.0f, 0.0f, 1.0f},     // 3
+
+    // top face 
+    {0.0f, 1.0f, 0.0f},     // 4
+    {1.0f, 1.0f, 0.0f},     // 5
+    {0.0f, 1.0f, 1.0f},     // 6
+    {1.0f, 1.0f, 1.0f},     // 7
+};
+
+
+/*
+    Pairs of vertex index (from CUBE1).
+    Start-end combination to to describe each cube
+    edge (12 in total). Being used to solve the equations.
+*/
+static const size_t EDGESOLVE_PAIRS[12][2] = {
+    {0, 1}, {0, 2}, {0, 4}, // (0,0,0)
+    {7, 3}, {7, 5}, {7, 6}, // (1,1,1)
+                            
+    {4, 5}, {4, 6},         // (0,1,0)
+    {3, 1}, {7, 2},         // (1,0,1)
+    
+    {1, 5},                 // (1,0,0)
+    {6, 2}                  // (0,1,1)
+} 
+
+#define CUBE_START 0.0f
+#define CUBE_END 1.0f
 
 
 
@@ -283,7 +285,11 @@ static inline bool is_shared_edge(vs_vec3 a, vs_vec3 b, float prec){
 // check if 2 points are located at the same cube face
 // (xy) (xz) (yz)
 // (one of the coords matches)
-static inline bool is_shared_face(vs_vec3 a, vs_vec3 b, float prec){
+static inline bool is_shared_face(
+        const vs_vec3 a,
+        const vs_vec3 b,
+        float prec
+){
     bool ret = false;
     for(size_t i=0; i<3; ++i){
         ret |= ( (cmpf(a[i],CUBE_START,prec)) && (cmpf(b[i],CUBE_START,prec)) ) ||
@@ -297,11 +303,12 @@ static inline bool is_shared_face(vs_vec3 a, vs_vec3 b, float prec){
 
 
 
-// calculate normal for triangle 
-static void norm3(
+// calculate normal by 2 vectors
+// (cross-product)
+void vs_norm3(
     // two vectors
-    vs_vec3 p,
-    vs_vec3 q,
+    const vs_vec3 p,
+    const vs_vec3 q,
 
     vs_vec3 out // out 
 ){
@@ -316,6 +323,12 @@ static void norm3(
     out[1] = p[0]*q[2] - p[2]*q[0];
     out[2] = p[0]*q[1] - p[1]*q[0];
 }
+
+// scalar product of 2 vectors 
+float vs_dot3(const vs_vec3 a, const vs_vec3 b){
+    return a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
+}
+
 
 
 
