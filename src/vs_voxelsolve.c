@@ -11,11 +11,11 @@
 
 
 
-/* ----------------------------------------
+/* --------------------------------------------
     Main types;
     float 3d vectors should work well 
     with GLM.
----------------------------------------- */
+-------------------------------------------- */
 
 typedef float vs_vec3[3]; // regular vector that will be used here 
                           // (x,y,z)
@@ -25,6 +25,10 @@ typedef int32_t vs_vec3i[3];
 typedef size_t vs_tri[3]; // triangle described by 3 index
 
 
+
+/* --------------------------------------------
+    Input-output structures
+-------------------------------------------- */
 
 typedef struct {
     vs_vec3 offt; 
@@ -50,19 +54,22 @@ typedef struct {
 
 } vs_voxelsolve_con;
 
-
 typedef struct {
     vs_vec3 * vertex;
     size_t vertex_len;
 
-    vs_tri * triangles;
-    size_t triangles_len;
+    vs_tri * tris;
+    size_t tris_len;
 } vs_voxelsolve_data;
 
 
 
 
 
+
+/* --------------------------------------------
+    Equation solving (dot on the edge)
+-------------------------------------------- */
 
 typedef struct {
     size_t cvi[2];          // cube vertex index; start and end of 
@@ -88,9 +95,9 @@ static bool vs_solution_sharedcv(vs_solution a, vs_solution b){
 
 
 
-/* ----------------------------------------
+/* ------------------------------------------------
     Math operations and constants
----------------------------------------- */
+------------------------------------------------ */
 
 const vs_vec3 vs_xup = {1.0f,0.0f,0.0f};
 const vs_vec3 vs_yup = {0.0f,1.0f,0.0f};
@@ -111,13 +118,77 @@ inline bool cmpf(float a, float b, float prec){
 
 
 // compares two vec3 with certain precision
-inline bool cmp3(vs_vec3 a, vs_vec3 b, float prec){
+inline bool vs_cmp3(vs_vec3 a, vs_vec3 b, float prec){
     return(
         fabsf(a[0] - b[0]) <= prec &&
         fabsf(a[1] - b[1]) <= prec && 
         fabsf(a[2] - b[2]) <= prec 
     );
 }
+
+// linear interpolation with vs_vec3 output
+static inline void lerp3(
+        const vs_vec3 start,
+        const vs_vec3 end,
+        float v,
+        vs_vec3 * out
+){
+    out[0] = start[0]  +  (end[0] - start[0]) * v;
+    out[1] = start[1]  +  (end[1] - start[1]) * v;
+    out[2] = start[2]  +  (end[2] - start[2]) * v;
+}
+
+
+static inline float dist3(vs_vec3 a, vs_vec3 b){
+    return sqrt(
+            powf(a[0]-b[0],2.0f) +
+            powf(a[1]-b[1],2.0f) +
+            powf(a[2]-b[2],2.0f)
+    );
+}
+
+
+// calculate normal by 2 vectors
+// (cross-product)
+void vs_norm3(
+    // two vectors
+    const vs_vec3 p,
+    const vs_vec3 q,
+
+    vs_vec3 out // out 
+){
+    /*
+        we create 3x3 matrix:
+            | x  y  z  |
+            | px py pz |
+            | qx qy qz |
+        and calculating it's det
+    */
+    out[0] = p[1]*q[2] - p[2]*q[1];
+    out[1] = p[0]*q[2] - p[2]*q[0];
+    out[2] = p[0]*q[1] - p[1]*q[0];
+}
+
+// scalar product of 2 vectors 
+float vs_dot3(const vs_vec3 a, const vs_vec3 b){
+    return a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
+}
+
+static inline float scalar_diff3(vs_vec3 a, vs_vec3 b){
+    return(
+            a[0]-b[0] +
+            a[1]-b[1] +
+            a[2]-b[2]
+    );
+}
+
+
+
+
+
+/* ------------------------------------------------
+    Voxel/cube 
+------------------------------------------------ */
 
 // create 8 vertex that describe a cube
 // out array will have the length of 8
@@ -134,43 +205,6 @@ static inline void gen_cube(
         out[i][2] = start[2] + CUBE1[0][2] * vscale;
     }
 }
-
-
-// linear interpolation with vs_vec3 output
-static inline void lerp3(
-        const vs_vec3 start,
-        const vs_vec3 end,
-        float v,
-        vs_vec3 * out
-){
-    out[0] = start[0]  +  (end[0] - start[0]) * v;
-    out[1] = start[1]  +  (end[1] - start[1]) * v;
-    out[2] = start[2]  +  (end[2] - start[2]) * v;
-}
-
-
-
-
-
-static inline float dist3(vs_vec3 a, vs_vec3 b){
-    return sqrt(
-            powf(a[0]-b[0],2.0f) +
-            powf(a[1]-b[1],2.0f) +
-            powf(a[2]-b[2],2.0f)
-    );
-}
-
-
-static inline float scalar_diff3(vs_vec3 a, vs_vec3 b){
-    return(
-            a[0]-b[0] +
-            a[1]-b[1] +
-            a[2]-b[2]
-    );
-}
-
-
-
 
 static const size_t CUBE_VLEN = 8;
 static const vs_vec3 VS_VEC3_ZERO = {0.0f, 0.0f, 0.0f};
@@ -303,42 +337,9 @@ static inline bool is_shared_face(
 
 
 
-// calculate normal by 2 vectors
-// (cross-product)
-void vs_norm3(
-    // two vectors
-    const vs_vec3 p,
-    const vs_vec3 q,
-
-    vs_vec3 out // out 
-){
-    /*
-        we create 3x3 matrix:
-            | x  y  z  |
-            | px py pz |
-            | qx qy qz |
-        and calculating it's det
-    */
-    out[0] = p[1]*q[2] - p[2]*q[1];
-    out[1] = p[0]*q[2] - p[2]*q[0];
-    out[2] = p[0]*q[1] - p[1]*q[0];
-}
-
-// scalar product of 2 vectors 
-float vs_dot3(const vs_vec3 a, const vs_vec3 b){
-    return a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
-}
-
-
-
-
-
-
-
-
-/* ----------------------------------------
+/* --------------------------------------------
     Additional algorythm steps 
----------------------------------------- */
+-------------------------------------------- */
 
 static inline bool is_border_voxel(
         vs_vec3 start,
