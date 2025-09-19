@@ -2,7 +2,7 @@
 #include "vs_voxelsolve.h"
 
 
-static int8_t tri_dir(float * tri, float * ref_axis){
+static int8_t tri_facedir_sign(float * tri, float * ref_axis){
     vs_vec3 a;
     vs_vec3 b;
 
@@ -18,9 +18,9 @@ static int8_t tri_dir(float * tri, float * ref_axis){
     vs_vec3 n;
     norm(a,b, n);
 
-#define TRI_DIR_UNDEF   0
-#define TRI_DIR_FORW    1
-#define TRI_DIR_BACK   -1
+#define TRI_FACEDIR_UNDEF   0
+#define TRI_FACEDIR_FORW    1
+#define TRI_FACEDIR_BACK   -1
 
     float sign = dot3(n,ref_axis);
     if(cmpf(sign,0.0f, 0.001f)) return TRI_DIR_UNDEF;
@@ -30,14 +30,16 @@ static int8_t tri_dir(float * tri, float * ref_axis){
 
 
 void vs_glmakebuffers(
-        vs_voxelsolve_data * data,
+        vs_voxelsolve_data * data,  // input
         float * vbo,    size_t * vbo_len,
         size_t * ebo,   size_t * ebo_len,
         
-        size_t vertex_floats,   // how much floats used
-                  // to describe 1 vertex
+        size_t vertex_floats,       // how much floats used
+                                    // to describe 1 vertex
         
-        size_t vertex_cofft  // vertex coordinate offset
+        size_t vertex_cofft,        // vertex coordinate offset
+        
+        bool cw                     // is clockwise 
 ){
     /* allocate memory for output */
     size_t vlen, elen; // length (measured in 1-elements)
@@ -58,8 +60,55 @@ void vs_glmakebuffers(
         vbo[ (i*vertex_floats)+vertex_cofft+2 ] = data->vertex[i][2];
     }
 
+    /* 
+        for each triangle try to form ebo;
+        in vs_voxelsolve_data, all vertex are chaotic;
+        here we putting them in the right order to describe
+        openGL polygon;
+    */
+    
+    /* just a duplicated references */
+    float * tris = data->tris;
+    size_t tris-len = data->tris_len;
+    float vertex = data->vertex;
+    size_t vertex_len = data->vertex_len;
 
-    for(size_t i=0; i<data->tris_len; ++i){
+    for(size_t i=0; i<tris_len; ++i){
+        /* check triange's face direction */
+        int8_t tfd_axis = -1; 
+        bool tfd_forward = true;
+
+        /* try to find the right axis */
+        for(size_t ax=0; ax<3; ++ax){
+            int8_t tfd_sign = tri_facedir_sign(data->tris[i]);
+            // found the right sign
+            if(tfd_sign != TRI_DIR_UNDEF){
+                tfd_axis = ax; 
+                tfd_forward = (tfd_axis >= TRI_FACEDIR_FORW);
+                break;
+            }
+        } 
+        if(tfd_axis == -1) continue; // invalid triangle
+        
+        /* 
+            get two axes that describe a plain;
+            for example, if tfd_axis is Y axis, then
+            plain is described by X,Z axes;
+
+            It's ised to order vertex in CW CCW order.
+        */
+        int8_t plain_axes[2];
+        if(tfd_axis != 0) plain_axes[0] = 0;
+        else plain_axes[0] = 1;
+        if(tfd_axis != 1 && plain_axes[0] != 1) plain_axes[1] = 1;
+        else plain_axes[1] = 2;
+        
+        /* now, fill the element buffer in the certain order */
+        uint8_t v0i = 0, v1i = 0;
+        
+
+        float crd0_max = data->;
+        float crd1_max/;
         
     }
 

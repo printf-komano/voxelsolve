@@ -99,10 +99,11 @@ static bool vs_solution_sharedcv(vs_solution a, vs_solution b){
     Math operations and constants
 ------------------------------------------------ */
 
-const vs_vec3 vs_xup = {1.0f,0.0f,0.0f};
-const vs_vec3 vs_yup = {0.0f,1.0f,0.0f};
-const vs_vec3 vs_zup = {0.0f,0.0f,1.0f};
-
+const vs_vec3 VS_VEC3_AXIS[3] = {
+    {1.0f,0.0f,0.0f},
+    {0.0f,1.0f,0.0f},
+    {0.0f,0.0f,1.0f}
+}
 
 
 inline bool cmpf(float a, float b, float prec){
