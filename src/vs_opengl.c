@@ -29,7 +29,13 @@ static int8_t tri_facedir_sign(float * tri, float * ref_axis){
 }
 
 
-void vs_glmakebuffers(
+
+
+#define TRIANGLE_ORDER_NONE 0
+#define TRIANGLE_ORDER_CW   1
+#define TRIANGLE_ORDER_CCW  2
+
+void vs_makebuffers(
         vs_voxelsolve_data * data,  // input
         float * vbo,    size_t * vbo_len,
         size_t * ebo,   size_t * ebo_len,
@@ -39,7 +45,7 @@ void vs_glmakebuffers(
         
         size_t vertex_cofft,        // vertex coordinate offset
         
-        bool cw                     // is clockwise 
+        uint8_t tri_order            
 ){
     /* allocate memory for output */
     size_t vlen, elen; // length (measured in 1-elements)
@@ -87,7 +93,7 @@ void vs_glmakebuffers(
                 tfd_forward = (tfd_axis >= TRI_FACEDIR_FORW);
                 break;
             }
-        } 
+        }
         if(tfd_axis == -1) continue; // invalid triangle
         
         /* 
@@ -104,12 +110,15 @@ void vs_glmakebuffers(
         else plain_axes[1] = 2;
         
         /* now, fill the element buffer in the certain order */
-        uint8_t v0i = 0, v1i = 0;
+        size_t ordered_index[3] = {0,0,0};
+        float cord_max = -1.0f;
+
+        // by plain axis 0
+        for(size_t j=0; j<3; ++j){
+        
+        }
         
 
-        float crd0_max = data->;
-        float crd1_max/;
-        
     }
 
 }
