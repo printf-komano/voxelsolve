@@ -2,30 +2,35 @@
 #include "vs_voxelsolve.h"
 
 
-static int8_t tri_facedir_sign(const vs_vec3 * tri, const vs_vec3 ref_axis){
+int8_t tri_facedir_sign(const vs_vec3* vertex, const vs_tri tri, const vs_vec3 ref_axis){
     vs_vec3 a;
     vs_vec3 b;
 
-    /* find 2 directions (01 and 02) */
-    a[0] = tri[1][0] - tri[0][0];
-    a[1] = tri[1][1] - tri[0][1];
-    a[2] = tri[1][2] - tri[0][2];
+    vs_vec3 * vtri;
+    VS_VEC3_SET( vtri[0], vertex[tri[0]] );
+    VS_VEC3_SET( vtri[0], vertex[tri[1]] );
+    VS_VEC3_SET( vtri[0], vertex[tri[2]] );
 
-    b[0] = tri[2][0] - tri[0][0];
-    b[1] = tri[2][1] - tri[0][1];
-    b[2] = tri[2][2] - tri[0][2];
+    /* find 2 directions (01 and 02) */
+    a[0] = vtri[1][0] - vtri[0][0];
+    a[1] = vtri[1][1] - vtri[0][1];
+    a[2] = vtri[1][2] - vtri[0][2];
+
+    b[0] = vtri[2][0] - vtri[0][0];
+    b[1] = vtri[2][1] - vtri[0][1];
+    b[2] = vtri[2][2] - vtri[0][2];
 
     vs_vec3 n;
-    norm(a,b, n);
+    vs_norm3(a,b, n);
 
 #define VS_TRI_FACEDIR_UNDEF   0
 #define VS_TRI_FACEDIR_FORW    1
 #define VS_TRI_FACEDIR_BACK   -1
 
-    float sign = dot3(n,ref_axis);
-    if(cmpf(sign,0.0f, 0.001f)) return TRI_DIR_UNDEF;
-    if(sign<0.0f) return TRI_DIR_BACK;
-    return TRI_DIR_FORW;
+    float sign = vs_dot3(n,ref_axis);
+    if(vs_cmpf(sign,0.0f, 0.001f)) return VS_TRI_FACEDIR_UNDEF;
+    if(sign<0.0f) return VS_TRI_FACEDIR_BACK;
+    return VS_TRI_FACEDIR_FORW;
 }
 
 
@@ -37,8 +42,8 @@ static int8_t tri_facedir_sign(const vs_vec3 * tri, const vs_vec3 ref_axis){
 
 void vs_makebuffers(
         vs_voxelsolve_data * data,  // input
-        float * vbo,    size_t * vbo_len,
-        size_t * ebo,   size_t * ebo_len,
+        float ** vbo,    size_t * vbo_len,
+        size_t ** ebo,   size_t * ebo_len,
         
         size_t vertex_floats,       // how much floats used
                                     // to describe 1 vertex
@@ -49,21 +54,20 @@ void vs_makebuffers(
 ){
     /* allocate memory for output */
     size_t vlen, elen; // length (measured in 1-elements)
-
     vlen = data->vertex_len * vertex_floats;
-    *vbo_len = vlen
-    *vbo = (float*)malloc((*vbo_len) * sizeof(float));
-    
+    *vbo_len = vlen;
+    *vbo = (float*)malloc(vlen * sizeof(float));
+
     elen = data->tris_len * 3; // 3 vertices for each triangle
     *ebo_len = elen;
-    *ebo = (size_t*)malloc((*ebo_len) * sizeof(size_t));
+    *ebo = (size_t*)malloc(elen * sizeof(size_t));
 
 
     /* fill vbo */ 
     for(size_t i=0; i<data->vertex_len; ++i){
-        vbo[ (i*vertex_floats)+vertex_cofft+0 ] = data->vertex[i][0];
-        vbo[ (i*vertex_floats)+vertex_cofft+1 ] = data->vertex[i][1];
-        vbo[ (i*vertex_floats)+vertex_cofft+2 ] = data->vertex[i][2];
+        *vbo[ (i*vertex_floats)+vertex_cofft+0 ] = data->vertex[i][0];
+        *vbo[ (i*vertex_floats)+vertex_cofft+1 ] = data->vertex[i][1];
+        *vbo[ (i*vertex_floats)+vertex_cofft+2 ] = data->vertex[i][2];
     }
 
     /* 
@@ -74,9 +78,9 @@ void vs_makebuffers(
     */
     
     /* just a duplicated references */
-    float * tris = data->tris;
-    size_t tris-len = data->tris_len;
-    float vertex = data->vertex;
+    vs_tri * tris = data->tris;
+    size_t tris_len = data->tris_len;
+    vs_vec3 * vertex = data->vertex;
     size_t vertex_len = data->vertex_len;
 
     for(size_t i=0; i<tris_len; ++i){
@@ -88,7 +92,7 @@ void vs_makebuffers(
         // if order is not specified, algorithm is the simpliest
         if(tri_order == VS_TRI_ORDER_NONE){
             for(size_t vi=0; vi<3; ++vi){
-                ebo[ (i*3)+vi ] = data->tris[i][vi];
+                *ebo[ (i*3)+vi ] = data->tris[i][vi];
             }
             return;
         }
@@ -98,11 +102,11 @@ void vs_makebuffers(
 
         /* try to find the right axis */
         for(size_t ax=0; ax<3; ++ax){
-            int8_t tfd_sign = tri_facedir_sign(data->tris[i]);
+            int8_t tfd_sign = tri_facedir_sign(data->vertex,data->tris[i],VS_VEC3_AXIS[ax]);
             // found the right sign
-            if(tfd_sign != TRI_DIR_UNDEF){
+            if(tfd_sign != VS_TRI_FACEDIR_UNDEF){
                 tfd_axis = ax; 
-                tfd_forward = (tfd_axis >= TRI_FACEDIR_FORW);
+                tfd_forward = (tfd_axis >= VS_TRI_FACEDIR_FORW);
                 break;
             }
         }

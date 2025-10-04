@@ -106,20 +106,20 @@ const vs_vec3 VS_VEC3_AXIS[3] = {
 };
 
 
-inline bool vs_cmpf(float a, float b, float prec){
+bool vs_cmpf(float a, float b, float prec){
      return (fabsf(a - b) <= prec);
 }
 
 
-#define VS_VEC3_SET(to,from)(   \
-        to[0] = from[0];        \
-        to[1] = from[1];        \
-        to[2] = from[2]         \
-)                               
+void VS_VEC3_SET(vs_vec3 to, const vs_vec3 from){
+        to[0] = from[0];
+        to[1] = from[1];
+        to[2] = from[2];
+}
 
 
 // compares two vec3 with certain precision
-inline bool vs_vec3_cmp(vs_vec3 a, vs_vec3 b, float prec){
+bool vs_vec3_cmp(vs_vec3 a, vs_vec3 b, float prec){
     return(
         fabsf(a[0] - b[0]) <= prec &&
         fabsf(a[1] - b[1]) <= prec && 
