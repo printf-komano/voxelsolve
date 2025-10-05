@@ -19,7 +19,6 @@ const float THRESHOLD = 1.0f;
 const float PRECISION = 0.1f;
 
 int main(){
-    return 0;
     vs_voxelsolve_con con;
 
     con.vscale      =    VSCALE;
@@ -39,8 +38,19 @@ int main(){
     con.vox_len[2] = VOX_LEN[2];
 
     vs_voxelsolve_data data;
-    
+     
     voxelsolve(&data,con);
+
+    printf("VERTEX:\n");
+    for(int i=0; i<data.vertex_len; ++i){
+        printf("(%f %f, %f)\t",
+                data.vertex[i][0],
+                data.vertex[i][1],
+                data.vertex[i][2]
+        );
+        if(i%4 == 0) printf("\n");
+    }
+    printf("\n");
     
     return 0;
 }

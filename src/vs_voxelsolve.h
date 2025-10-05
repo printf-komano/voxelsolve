@@ -559,7 +559,7 @@ static void dots_triang(
     }
     
     bool queue [8] = { [0 ... 7] = true }; // unprocessed dots to connect
-
+    printf("\t3-triang -----------\n");
     // 3-TRIANGULATION
     // find all triangles on the edges
     for(size_t i=0; i<(sol_len-2); ++i){
@@ -599,7 +599,7 @@ static void dots_triang(
         }
     }
     
-
+    printf("\t4-triang -----------\n");
     // 4-TRIANGULATION 
     // find and triangulate the rest
     for(size_t i=0; i<sol_len; ++i){
@@ -658,11 +658,10 @@ static inline size_t voxel_solve(
     vs_vec3 verts[8];
     gen_cube(start,con.vscale,verts);
     
-
+    vs_solution * dots;
+    size_t dots_len;
     for(size_t i=0; i<12; ++i){
-        vs_solution * dots;
-        size_t dots_len;
-
+        printf("edge solve\n");
         edge_solve(
                 EDGESOLVE_PAIRS[i][0],
                 EDGESOLVE_PAIRS[i][1],
@@ -670,13 +669,10 @@ static inline size_t voxel_solve(
                 &dots_len,
                 con
         );
-
-        dots_triang(data, dots, dots_len, con);
-
-        free(dots);
     }
-
-    
+    dots_triang(data, dots, dots_len, con);
+    //printf("triangulated\n");
+    free(dots);    
     
 }
 
@@ -687,6 +683,22 @@ void voxelsolve(
         vs_voxelsolve_con con
         )
 {
+    size_t voxelc = con.vox_len[0] * con.vox_len[1] * con.vox_len[2];
+    
+    data->vertex_len = 0;
+    data->vertex = (vs_vec3*) malloc(
+            voxelc *        // assume all voxels have some shape
+            8 *             // assume 8 edges are taken for reach cube
+            sizeof(vs_vec3)
+    );
+    
+    data->tris_len = 0;
+    data->tris = (vs_tri*) malloc(
+            voxelc *        // assume all voxels have some shape
+            4 *             // assume 4 triangles for cube
+            sizeof(vs_tri)
+    );
+
     vs_vec3 doti;
 
     for(size_t xi=0; xi<con.vox_len[0];++xi){
@@ -699,7 +711,9 @@ void voxelsolve(
                 doti[2] = con.offt[2] + xi*con.vscale;
 
                 if(is_border_voxel(doti,con)){
+                    printf("-\n");
                     voxel_solve(doti, data, con);
+                    printf("+\n");
                 }
             }
         }
