@@ -387,7 +387,6 @@ static void edge_solve(
         size_t endi,            // direction (1-vercor)
         
         vs_solution * out,      // RESULT. offset with LOCAL UNSCALED coords
-        size_t * out_len,
         
         vs_voxelsolve_con con   // config is needed here for scale, offt and f()
         )
@@ -410,7 +409,7 @@ static void edge_solve(
     float last_val = val;
 
     // start iterration
-    for (size_t i=1; i<=con.solve_steps; ++i){
+    for (size_t i=1; i<=con.solve_steps+1; ++i){
         // get the coordinates of the point
         float progress = step_size * (float)i;
         lerp3(CUBE1[starti],CUBE1[endi], progress, dot);
@@ -458,6 +457,7 @@ static size_t add_vertex(
     // if it's really new, add to buffer
     size_t offt = data->vertex_len;
     ++data->vertex_len;
+    //printf("\tdata->vertex_len=%d\n",++data->vertex_len);
     data->vertex[offt][0] = v[0];
     data->vertex[offt][1] = v[1];
     data->vertex[offt][2] = v[1];
@@ -479,7 +479,10 @@ static int32_t add_triangle(
         vs_vec3_cmp(a,b, prec) ||
         vs_vec3_cmp(b,c, prec) ||
         vs_vec3_cmp(c,a, prec)
-    ) return -1;
+    ) {
+        printf("unnatural triangle intersection!");
+        return -1;
+    }
 
     size_t ai = add_vertex(data,a, prec);
     size_t bi = add_vertex(data,b, prec);
@@ -554,12 +557,14 @@ static void dots_triang(
 
     // simpliest variant of the algorythm *(add only 1 trangle)
     else if(sol_len == 3) {
+        //printf("3 triange and exit\n");
         add_triangle(data, sol[0].dot, sol[1].dot, sol[2].dot, con.prec);
         return;
     }
     
     bool queue [8] = { [0 ... 7] = true }; // unprocessed dots to connect
-    printf("\t3-triang -----------\n");
+    
+    //printf("\t3-triang -----------\n");
     // 3-TRIANGULATION
     // find all triangles on the edges
     for(size_t i=0; i<(sol_len-2); ++i){
@@ -599,7 +604,7 @@ static void dots_triang(
         }
     }
     
-    printf("\t4-triang -----------\n");
+    //printf("\t4-triang -----------\n");
     // 4-TRIANGULATION 
     // find and triangulate the rest
     for(size_t i=0; i<sol_len; ++i){
@@ -658,21 +663,25 @@ static inline size_t voxel_solve(
     vs_vec3 verts[8];
     gen_cube(start,con.vscale,verts);
     
-    vs_solution * dots;
-    size_t dots_len;
+    vs_solution dots[12];
+    size_t dots_len = 0;
     for(size_t i=0; i<12; ++i){
-        printf("edge solve\n");
+        //printf("edge solve\n");
+        vs_solution sol;
         edge_solve(
                 EDGESOLVE_PAIRS[i][0],
                 EDGESOLVE_PAIRS[i][1],
-                dots,
-                &dots_len,
+                &sol,
                 con
         );
+        // if found, add to other dots
+        if(sol.intersections > 0){
+            dots[i] = sol;
+            ++dots_len;
+        }
     }
     dots_triang(data, dots, dots_len, con);
-    //printf("triangulated\n");
-    free(dots);    
+    //printf("triangulated. vertices:%d\n", data->vertex_len);  
     
 }
 
@@ -711,9 +720,7 @@ void voxelsolve(
                 doti[2] = con.offt[2] + xi*con.vscale;
 
                 if(is_border_voxel(doti,con)){
-                    printf("-\n");
                     voxel_solve(doti, data, con);
-                    printf("+\n");
                 }
             }
         }

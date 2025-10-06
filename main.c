@@ -5,18 +5,19 @@
 
 
 float f(vs_vec3 v, float * args, size_t argc){
-    return v[0] * v[2] + v[1];
-} 
+    return sinf(v[2]) + cosf(v[1]);
+}
+
 float ARGS[0] = {};
 size_t ARGC = 0;
 
 const vs_vec3 OFFT = {0.0f, 0.0f, 0.0f};
-const float VSCALE = 1.0f;
-const vs_vec3i VOX_LEN = {100,100,100};
+const float VSCALE = 0.1f;
+const vs_vec3i VOX_LEN = {16,16,16};
 const size_t STEPS = 8;
 
 const float THRESHOLD = 1.0f;
-const float PRECISION = 0.1f;
+const float PRECISION = 0.01f;
 
 int main(){
     vs_voxelsolve_con con;
@@ -41,16 +42,16 @@ int main(){
      
     voxelsolve(&data,con);
 
-    printf("VERTEX:\n");
+    printf("VERTEX [%d]:\n", data.vertex_len);
     for(int i=0; i<data.vertex_len; ++i){
-        printf("(%f %f, %f)\t",
+        if(i%4 == 0) printf("(%f %f, %f)\t",
                 data.vertex[i][0],
                 data.vertex[i][1],
                 data.vertex[i][2]
         );
-        if(i%4 == 0) printf("\n");
+        if(i%12 == 0) printf("\n");
     }
-    printf("\n");
+    printf("alg end.\n");
     
     return 0;
 }
