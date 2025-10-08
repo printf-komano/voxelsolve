@@ -214,6 +214,13 @@ static const vs_vec3 CUBE1[8] = {
     edge (12 in total). Being used to solve the equations.
 */
 static const size_t EDGESOLVE_PAIRS[12][2] = {
+    {0,1}, {2,3}, {4,5}, {6,7}, // x 0->1
+    {0,4}, {1,5}, {2,6}, {3,7}, // y 0->1
+    {0,2}, {1,3}, {4,6}, {5,7}, // z 0->1
+
+
+
+    /* OLDER VERISON
     {0, 1}, {0, 2}, {0, 4}, // (0,0,0)
     {7, 3}, {7, 5}, {7, 6}, // (1,1,1)
                             
@@ -222,6 +229,8 @@ static const size_t EDGESOLVE_PAIRS[12][2] = {
     
     {1, 5},                 // (1,0,0)
     {6, 2}                  // (0,1,1)
+    */
+
 }; 
 
 #define CUBE_START 0.0f
@@ -405,7 +414,7 @@ static void edge_solve(
 
     // calling the function for the first time
     local_to_real3(CUBE1[starti],dot_real,con);
-    float val = con.f(dot_real, con.farg, con.fargc);
+    float val = con.f(dot_real, con.farg, con.fargc) - con.f_threshold;
     float last_val = val;
 
     // start iterration
@@ -415,17 +424,20 @@ static void edge_solve(
         lerp3(CUBE1[starti],CUBE1[endi], progress, dot);
         local_to_real3(dot,dot_real,con);
 
-        float val = con.f(dot_real, con.farg, con.fargc);
-        
-        if(
-            (val > con.f_threshold && last_val < con.f_threshold) || 
-            (val < con.f_threshold && last_val > con.f_threshold) 
-        ){
-            float last_val = val; // evaluate again 
-                                  // (after another solution found)
-            sum_offt += progress;
+        float val = con.f(dot_real, con.farg, con.fargc) - con.f_threshold;
+        bool opposite = (val>=0.0f && last_val<0.0f) ||
+                        (val<0.0f && last_val>=0.0f);
+        if(opposite){
+            printf("add int.\n\tv:%f\tlv:%f\n\topp:%d\n",
+                val,
+                last_val,
+                opposite
+            );
             ++intersections;
+            sum_offt += progress;
         }
+
+        last_val = val; // evaluate again 
     }
 
 
@@ -676,7 +688,7 @@ static inline size_t voxel_solve(
         );
         // if found, add to other dots
         if(sol.intersections > 0){
-            dots[i] = sol;
+            dots[dots_len] = sol;
             ++dots_len;
         }
     }
