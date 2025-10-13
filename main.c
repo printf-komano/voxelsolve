@@ -12,12 +12,12 @@ float ARGS[0] = {};
 size_t ARGC = 0;
 
 const vs_vec3 OFFT = {0.0f, 0.0f, 0.0f};
-const float VSCALE = 0.1f;
+const float VSCALE = 0.05f;
 const vs_vec3i VOX_LEN = {16,16,16};
 const size_t STEPS = 8;
 
 const float THRESHOLD = 1.0f;
-const float PRECISION = 0.01f;
+const float PRECISION = 0.025f;
 
 int main(){
     vs_voxelsolve_con con;
@@ -44,12 +44,12 @@ int main(){
 
     printf("VERTEX [%d]:\n", data.vertex_len);
     for(int i=0; i<data.vertex_len; ++i){
-        if(i%4 == 0) printf("(%f %f, %f)\t",
+        printf("(%f %f, %f)\t",
                 data.vertex[i][0],
                 data.vertex[i][1],
                 data.vertex[i][2]
         );
-        if(i%12 == 0) printf("\n");
+        if(i%3==0) printf("\n");
     }
     printf("alg end.\n");
     

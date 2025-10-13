@@ -428,11 +428,6 @@ static void edge_solve(
         bool opposite = (val>=0.0f && last_val<0.0f) ||
                         (val<0.0f && last_val>=0.0f);
         if(opposite){
-            printf("add int.\n\tv:%f\tlv:%f\n\topp:%d\n",
-                val,
-                last_val,
-                opposite
-            );
             ++intersections;
             sum_offt += progress;
         }
@@ -463,7 +458,9 @@ static size_t add_vertex(
     // compare every existing vertex with new one;
     // if close enough, merge with old vertex.
     for(size_t i=0; i<data->vertex_len; ++i){
-        if(vs_vec3_cmp(v,data->vertex[i],prec)) return i;
+        if(vs_vec3_cmp(v,data->vertex[i],prec)){
+            return i;
+        }
     }
     
     // if it's really new, add to buffer
@@ -472,7 +469,7 @@ static size_t add_vertex(
     //printf("\tdata->vertex_len=%d\n",++data->vertex_len);
     data->vertex[offt][0] = v[0];
     data->vertex[offt][1] = v[1];
-    data->vertex[offt][2] = v[1];
+    data->vertex[offt][2] = v[2];
 
     return offt;
 }
@@ -481,24 +478,43 @@ static size_t add_vertex(
 
 static int32_t add_triangle(
     vs_voxelsolve_data * data,
+    vs_vec3 start,
     vs_vec3 a,
     vs_vec3 b,
     vs_vec3 c,
-    float prec
+    vs_voxelsolve_con con
     )
 {
     if(
-        vs_vec3_cmp(a,b, prec) ||
-        vs_vec3_cmp(b,c, prec) ||
-        vs_vec3_cmp(c,a, prec)
+        vs_vec3_cmp(a,b, con.prec) ||
+        vs_vec3_cmp(b,c, con.prec) ||
+        vs_vec3_cmp(c,a, con.prec)
     ) {
         printf("unnatural triangle intersection!");
         return -1;
     }
+    
 
-    size_t ai = add_vertex(data,a, prec);
-    size_t bi = add_vertex(data,b, prec);
-    size_t ci = add_vertex(data,c, prec);
+    vs_vec3 a_real = {
+        a[0] * con.vscale + start[0],
+        a[1] * con.vscale + start[1],
+        a[2] * con.vscale + start[2]
+    };
+    vs_vec3 b_real = {
+        b[0] * con.vscale + start[0],
+        b[1] * con.vscale + start[1],
+        b[2] * con.vscale + start[2]
+    };
+    vs_vec3 c_real = {
+        c[0] * con.vscale + start[0],
+        c[1] * con.vscale + start[1],
+        c[2] * con.vscale + start[2]
+    };
+
+
+    size_t ai = add_vertex(data,a_real, con.prec);
+    size_t bi = add_vertex(data,b_real, con.prec);
+    size_t ci = add_vertex(data,c_real, con.prec);
     size_t offt = data->tris_len;
     data->tris[offt][0] = ai;
     data->tris[offt][1] = bi;
@@ -557,6 +573,7 @@ static int32_t add_triangle(
 */
 static void dots_triang(
         vs_voxelsolve_data * data,
+        vs_vec3 start,
         vs_solution * sol,          // solutions 
         size_t sol_len,       
         vs_voxelsolve_con con
@@ -569,14 +586,18 @@ static void dots_triang(
 
     // simpliest variant of the algorythm *(add only 1 trangle)
     else if(sol_len == 3) {
-        //printf("3 triange and exit\n");
-        add_triangle(data, sol[0].dot, sol[1].dot, sol[2].dot, con.prec);
+        add_triangle(data, start, sol[0].dot, sol[1].dot, sol[2].dot, con);
         return;
     }
+    /*else if(sol_len == 4) {
+        add_triangle(data, start, sol[0].dot, sol[1].dot, sol[2].dot, con);
+        add_triangle(data, start, sol[3].dot, sol[2].dot, sol[1].dot, con);
+        return;
+    }*/
+
     
     bool queue [8] = { [0 ... 7] = true }; // unprocessed dots to connect
     
-    //printf("\t3-triang -----------\n");
     // 3-TRIANGULATION
     // find all triangles on the edges
     for(size_t i=0; i<(sol_len-2); ++i){
@@ -610,12 +631,13 @@ static void dots_triang(
 
             add_triangle(
                     data, 
+                    start,
                     sol[nbrs[0]].dot, sol[nbrs[1]].dot, sol[nbrs[2]].dot,
-                    con.prec
+                    con
                     );
         }
     }
-    
+    return; 
     //printf("\t4-triang -----------\n");
     // 4-TRIANGULATION 
     // find and triangulate the rest
@@ -645,8 +667,9 @@ static void dots_triang(
             queue[i] = false;
             add_triangle(
                     data, 
+                    start,
                     sol[tri[0]].dot, sol[tri[1]].dot, sol[tri[2]].dot,
-                    con.prec
+                    con
                     );
         }
 
@@ -692,7 +715,7 @@ static inline size_t voxel_solve(
             ++dots_len;
         }
     }
-    dots_triang(data, dots, dots_len, con);
+    dots_triang(data, start, dots, dots_len, con);
     //printf("triangulated. vertices:%d\n", data->vertex_len);  
     
 }
