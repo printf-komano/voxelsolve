@@ -598,7 +598,7 @@ static void dots_triang(
     
     bool queue [8] = { [0 ... 7] = true }; // unprocessed dots to connect
     
-    // 3-TRIANGULATION
+    // 3-TRIANGULATION (seems like correct)
     // find all triangles on the edges
     for(size_t i=0; i<(sol_len-2); ++i){
         size_t nbrs[3] = {i,0,0}; // neighbours of the dot (including itself)
@@ -637,19 +637,19 @@ static void dots_triang(
                     );
         }
     }
-    return; 
+    //return; 
     //printf("\t4-triang -----------\n");
     // 4-TRIANGULATION 
     // find and triangulate the rest
-    for(size_t i=0; i<sol_len; ++i){
+    for(size_t i=0; i<sol_len; ++i){        
+        int32_t tri[3] = {i,-1,-1}; // basically the copy of previous step
         if( !queue[i] ) continue; //ignore already tiangulated dots        
-        uint32_t tri[3] = {i,-1,-1}; // basically the copy of previous step
         
 
         // try to find all triangle components
         for(size_t j=i+1; j<sol_len; ++j){
             if( !queue[j] ) continue; // idk what I am doing at this point
-                                      // do that dudes really have ti be ignored?(((
+                                      // do that dudes really have to be ignored?(((
             
             // look for one neighbour-face dot 
             if( tri[1]<0 && is_shared_face(sol[i].dot,sol[j].dot, prec) ){
@@ -657,7 +657,7 @@ static void dots_triang(
             }
             
             // look for one non-neighbour-face dot 
-            else if( tri[2]<0 && !is_shared_face(sol[i].dot,sol[j].dot,prec) ){
+            if( tri[2]<0 && !is_shared_face(sol[i].dot,sol[j].dot,prec) ){
                 tri[2] = j;
             }
         }
