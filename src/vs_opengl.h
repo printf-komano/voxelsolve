@@ -65,9 +65,9 @@ void vs_makebuffers(
 
     /* fill vbo */ 
     for(size_t i=0; i<data->vertex_len; ++i){
-        *vbo[ (i*vertex_floats)+vertex_cofft+0 ] = data->vertex[i][0];
-        *vbo[ (i*vertex_floats)+vertex_cofft+1 ] = data->vertex[i][1];
-        *vbo[ (i*vertex_floats)+vertex_cofft+2 ] = data->vertex[i][2];
+        (*vbo)[ (i*vertex_floats)+vertex_cofft+0 ] = data->vertex[i][0];
+        (*vbo)[ (i*vertex_floats)+vertex_cofft+1 ] = data->vertex[i][1];
+        (*vbo)[ (i*vertex_floats)+vertex_cofft+2 ] = data->vertex[i][2];
     }
 
     /* 
@@ -92,7 +92,7 @@ void vs_makebuffers(
         // if order is not specified, algorithm is the simpliest
         if(tri_order == VS_TRI_ORDER_NONE){
             for(size_t vi=0; vi<3; ++vi){
-                *ebo[ (i*3)+vi ] = data->tris[i][vi];
+                (*ebo)[ (i*3)+vi ] = data->tris[i][vi];
             }
             return;
         }
