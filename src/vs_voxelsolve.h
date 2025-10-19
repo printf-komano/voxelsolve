@@ -392,8 +392,9 @@ static inline bool is_border_voxel(
     are easier to manipulate.
 */
 static void edge_solve(
-        size_t starti,          // starting point (in real coordinates)
-        size_t endi,            // direction (1-vercor)
+        vs_vec3 start,             // real point
+        size_t starti,          
+        size_t endi,            
         
         vs_solution * out,      // RESULT. offset with LOCAL UNSCALED coords
         
@@ -413,8 +414,7 @@ static void edge_solve(
 
 
     // calling the function for the first time
-    local_to_real3(CUBE1[starti],dot_real,con);
-    float val = con.f(dot_real, con.farg, con.fargc) - con.f_threshold;
+    float val = con.f(start, con.farg, con.fargc) - con.f_threshold;
     float last_val = val;
 
     // start iterration
@@ -422,7 +422,11 @@ static void edge_solve(
         // get the coordinates of the point
         float progress = step_size * (float)i;
         lerp3(CUBE1[starti],CUBE1[endi], progress, dot);
-        local_to_real3(dot,dot_real,con);
+        
+        dot_real[0] = start[0] + dot[0]*con.vscale;
+        dot_real[1] = start[1] + dot[1]*con.vscale;
+        dot_real[2] = start[2] + dot[2]*con.vscale;
+
 
         float val = con.f(dot_real, con.farg, con.fargc) - con.f_threshold;
         bool opposite = (val>=0.0f && last_val<0.0f) ||
@@ -712,6 +716,7 @@ static inline size_t voxel_solve(
         //printf("edge solve\n");
         vs_solution sol;
         edge_solve(
+                start,
                 EDGESOLVE_PAIRS[i][0],
                 EDGESOLVE_PAIRS[i][1],
                 &sol,
