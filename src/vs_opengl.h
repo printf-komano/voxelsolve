@@ -83,25 +83,20 @@ void vs_makebuffers(
     vs_vec3 * vertex = data->vertex;
     size_t vertex_len = data->vertex_len;
 
-    for(size_t i=0; i<tris_len; ++i){
-        /* check triange's face direction */
-        int8_t tfd_axis = -1; 
-        bool tfd_forward = true;
-        
-
-        // if order is not specified, algorithm is the simpliest
-        if(tri_order == VS_TRI_ORDER_NONE){
+    if(tri_order == VS_TRI_ORDER_NONE){
+        for(size_t i=0; i<tris_len; ++i){ 
+            // if order is not specified, algorithm is the simpliest
             for(size_t vi=0; vi<3; ++vi){
                 (*ebo)[ (i*3)+vi ] = data->tris[i][vi];
             }
-            return;
         }
 
-
+        return;
+    }
 
 
         /* try to find the right axis */
-        for(size_t ax=0; ax<3; ++ax){
+       /* for(size_t ax=0; ax<3; ++ax){
             int8_t tfd_sign = tri_facedir_sign(data->vertex,data->tris[i],VS_VEC3_AXIS[ax]);
             // found the right sign
             if(tfd_sign != VS_TRI_FACEDIR_UNDEF){
@@ -111,7 +106,7 @@ void vs_makebuffers(
             }
         }
         if(tfd_axis == -1) continue; // invalid triangle
-        
+        */
         /* 
             get two axes that describe a plain;
             for example, if tfd_axis is Y axis, then
@@ -119,14 +114,14 @@ void vs_makebuffers(
 
             It's ised to order vertex in CW CCW order.
         */
-        int8_t plain_axes[2];
+        /*int8_t plain_axes[2];
         if(tfd_axis != 0) plain_axes[0] = 0;
         else plain_axes[0] = 1;
         if(tfd_axis != 1 && plain_axes[0] != 1) plain_axes[1] = 1;
-        else plain_axes[1] = 2;
+        else plain_axes[1] = 2;*/
         
         /* now, fill the element buffer in the certain order */
-        size_t ordered_index[3] = {0,0,0};
+        /*size_t ordered_index[3] = {0,0,0};
         float cord_max = -1.0f;
 
         // by plain axis 0
@@ -135,7 +130,7 @@ void vs_makebuffers(
         }
         
 
-    }
+    }*/
 
 }
 

@@ -494,7 +494,7 @@ static int32_t add_triangle(
         return -1;
     }
     
-
+    
     vs_vec3 a_real = {
         a[0] * con.vscale + start[0],
         a[1] * con.vscale + start[1],
@@ -515,10 +515,18 @@ static int32_t add_triangle(
     size_t ai = add_vertex(data,a_real, con.prec);
     size_t bi = add_vertex(data,b_real, con.prec);
     size_t ci = add_vertex(data,c_real, con.prec);
+
+    
     size_t offt = data->tris_len;
     data->tris[offt][0] = ai;
     data->tris[offt][1] = bi;
     data->tris[offt][2] = ci;
+
+    /*printf("%d\tadded triangle[%d]: %d %d %d\n",
+        data->tris[offt],
+        offt,
+        ai,bi,ci
+    );*/
 
     ++data->tris_len;
     return offt;
@@ -589,11 +597,11 @@ static void dots_triang(
         add_triangle(data, start, sol[0].dot, sol[1].dot, sol[2].dot, con);
         return;
     }
-    /*else if(sol_len == 4) {
+    else if(sol_len == 4) {
         add_triangle(data, start, sol[0].dot, sol[1].dot, sol[2].dot, con);
         add_triangle(data, start, sol[3].dot, sol[2].dot, sol[1].dot, con);
         return;
-    }*/
+    }
 
     
     bool queue [8] = { [0 ... 7] = true }; // unprocessed dots to connect
@@ -751,8 +759,8 @@ void voxelsolve(
 
                 //iterable dot
                 doti[0] = con.offt[0] + xi*con.vscale;
-                doti[1] = con.offt[1] + xi*con.vscale;
-                doti[2] = con.offt[2] + xi*con.vscale;
+                doti[1] = con.offt[1] + yi*con.vscale;
+                doti[2] = con.offt[2] + zi*con.vscale;
 
                 if(is_border_voxel(doti,con)){
                     voxel_solve(doti, data, con);
