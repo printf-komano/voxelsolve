@@ -401,7 +401,6 @@ static void edge_solve(
         vs_voxelsolve_con con   // config is needed here for scale, offt and f()
         )
 {  
-
     size_t intersections = 0;
     float sum_offt = 0.0f;      // summ of all solutions.
                                 // each solution described
@@ -411,39 +410,81 @@ static void edge_solve(
 
     vs_vec3 dot;        // iterable value
     vs_vec3 dot_real;   // f(dot_real)
+    
+    dot[0] = CUBE1[starti][0];
+    dot[1] = CUBE1[starti][1];
+    dot[2] = CUBE1[starti][2];
 
 
     // calling the function for the first time
-    float val = con.f(start, con.farg, con.fargc) - con.f_threshold;
+    dot_real[0] = start[0] + dot[0]*con.vscale;
+    dot_real[1] = start[1] + dot[1]*con.vscale;
+    dot_real[2] = start[2] + dot[2]*con.vscale;
+    
+    /*printf("cube %f %f %f \t [%f %f %f -> %f %f %f]\n",
+            start[0], start[1], start[2],
+            CUBE1[starti][0],CUBE1[starti][1],CUBE1[starti][2],
+            CUBE1[endi][0],CUBE1[endi][1],CUBE1[endi][2]
+    );*/
+
+    float val = con.f(dot_real, con.farg, con.fargc) - con.f_threshold;
     float last_val = val;
+
+   /* printf("\t\t%f %f %f = %f\n",
+                dot_real[0],dot_real[1],dot_real[2],
+                val
+        );*/
 
     // start iterration
     for (size_t i=1; i<=con.solve_steps+1; ++i){
         // get the coordinates of the point
         float progress = step_size * (float)i;
-        lerp3(CUBE1[starti],CUBE1[endi], progress, dot);
+
+        dot[0] = CUBE1[starti][0]  +   progress*(CUBE1[endi][0]-CUBE1[starti][0]);
+        dot[1] = CUBE1[starti][1]  +   progress*(CUBE1[endi][1]-CUBE1[starti][1]);
+        dot[2] = CUBE1[starti][2]  +   progress*(CUBE1[endi][2]-CUBE1[starti][2]);
+
         
         dot_real[0] = start[0] + dot[0]*con.vscale;
         dot_real[1] = start[1] + dot[1]*con.vscale;
         dot_real[2] = start[2] + dot[2]*con.vscale;
 
 
-        float val = con.f(dot_real, con.farg, con.fargc) - con.f_threshold;
+        val = con.f(dot_real, con.farg, con.fargc) - con.f_threshold;
         bool opposite = (val>=0.0f && last_val<0.0f) ||
                         (val<0.0f && last_val>=0.0f);
+        /*printf("\t\t%f %f %f = %f (%b)\n",
+                dot_real[0],dot_real[1],dot_real[2],
+                val,
+                opposite
+        );*/
+
         if(opposite){
+            /*printf("\tsolution (%d-%d) found at %f %f %f\n",
+                    starti,endi,
+                    dot_real[0],dot_real[1],dot_real[2]
+            );*/
             ++intersections;
             sum_offt += progress;
         }
 
         last_val = val; // evaluate again 
     }
-
+    //printf("____\n");
 
     float avg_offt = (sum_offt / (float)intersections);
 
     // form solution
-    lerp3(CUBE1[starti],CUBE1[endi], avg_offt, out->dot);
+    //lerp3(CUBE1[starti],CUBE1[endi], avg_offt, out->dot);
+    out->dot[0] = CUBE1[starti][0]  +
+        avg_offt*(CUBE1[endi][0]-CUBE1[starti][0]);
+
+    out->dot[1] = CUBE1[starti][1]  +
+        avg_offt*(CUBE1[endi][1]-CUBE1[starti][1]);
+    
+    out->dot[2] = CUBE1[starti][2]  +
+        avg_offt*(CUBE1[endi][2]-CUBE1[starti][2]);
+
     out->cvi[0] = starti;
     out->cvi[1] = endi;
     out->intersections = intersections;
@@ -603,7 +644,7 @@ static void dots_triang(
     }
     else if(sol_len == 4) {
         add_triangle(data, start, sol[0].dot, sol[1].dot, sol[2].dot, con);
-        add_triangle(data, start, sol[3].dot, sol[2].dot, sol[1].dot, con);
+        add_triangle(data, start, sol[1].dot, sol[2].dot, sol[3].dot, con);
         return;
     }
 
@@ -763,13 +804,13 @@ void voxelsolve(
             for(size_t zi=0; zi<con.vox_len[2];++zi){
 
                 //iterable dot
-                doti[0] = con.offt[0] + xi*con.vscale;
-                doti[1] = con.offt[1] + yi*con.vscale;
-                doti[2] = con.offt[2] + zi*con.vscale;
+                doti[0] = con.offt[0] + (float)xi*con.vscale;
+                doti[1] = con.offt[1] + (float)yi*con.vscale;
+                doti[2] = con.offt[2] + (float)zi*con.vscale;
 
-                if(is_border_voxel(doti,con)){
+                //if(is_border_voxel(doti,con)){
                     voxel_solve(doti, data, con);
-                }
+                //}
             }
         }
     }
