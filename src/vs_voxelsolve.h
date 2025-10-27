@@ -436,7 +436,7 @@ static void edge_solve(
         );*/
 
     // start iterration
-    for (size_t i=1; i<=con.solve_steps+1; ++i){
+    for (size_t i=1; i<=con.solve_steps; ++i){
         // get the coordinates of the point
         float progress = step_size * (float)i;
 
@@ -535,7 +535,7 @@ static int32_t add_triangle(
         vs_vec3_cmp(b,c, con.prec) ||
         vs_vec3_cmp(c,a, con.prec)
     ) {
-        printf("unnatural triangle intersection!");
+        printf("\tunnatural triangle intersection!\n");
         return -1;
     }
     
@@ -642,12 +642,24 @@ static void dots_triang(
         add_triangle(data, start, sol[0].dot, sol[1].dot, sol[2].dot, con);
         return;
     }
+    //if(sol_len > 4) printf("\t[sol_len > 3!]\n");
+    
+
     else if(sol_len == 4) {
         add_triangle(data, start, sol[0].dot, sol[1].dot, sol[2].dot, con);
         add_triangle(data, start, sol[1].dot, sol[2].dot, sol[3].dot, con);
         return;
     }
-
+    
+    //if(sol_len > 4) printf("\t[sol_len(%d) > 4!]\n",sol_len);
+    if(sol_len > 3){
+        printf("solutions(%d) > 3 :\n",sol_len);
+        for(size_t i=0; i<sol_len; ++i){
+            printf("\t%f %f %f\n",
+                    sol[i].dot[0],sol[i].dot[1],sol[i].dot[2]
+            );
+        }
+    }
     
     bool queue [8] = { [0 ... 7] = true }; // unprocessed dots to connect
     
@@ -678,9 +690,9 @@ static void dots_triang(
         if(nbrs_len == 3){
 
             // no longer avilable
-            queue[ nbrs[0] ] = false;
-            queue[ nbrs[1] ] = false;
-            queue[ nbrs[2] ] = false;
+            //queue[ nbrs[0] ] = false;
+            //queue[ nbrs[1] ] = false;
+            //queue[ nbrs[2] ] = false;
 
             add_triangle(
                     data, 
@@ -716,8 +728,17 @@ static void dots_triang(
         }
         
         // able to build a triangle
-        if( tri[1]>=0 && tri[2]>=0 ){
-            queue[i] = false;
+        if( 
+                tri[1]>=0 && tri[2]>=0 &&
+                tri[0] != tri[1] &&
+                tri[0] != tri[2] &&
+                tri[1] != tri[2]
+
+        ){
+            //queue[i] = false;
+            //queue[tri[1]] = false;
+            //queue[tri[2]] = false;
+
             add_triangle(
                     data, 
                     start,
