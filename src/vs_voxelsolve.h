@@ -24,6 +24,7 @@ typedef float vs_vec3[3]; // regular vector that will be used here
 typedef int32_t vs_vec3i[3];
 typedef size_t vs_tri[3]; // triangle described by 3 index
 
+typedef int32_t vs_vec2i[2];
 
 
 /* --------------------------------------------
@@ -67,28 +68,25 @@ typedef struct {
 
 
 
+
 /* --------------------------------------------
-    Equation solving (dot on the edge)
+    Graphs (oriented);
+    These dudes being used for triangulation. 
 -------------------------------------------- */
-
 typedef struct {
-    size_t cvi[2];          // cube vertex index; start and end of 
-                            // the fragment where equation was solved
+    uint8_t from;
+    uint8_t to;
+    bool valid;
+} vs_edge;
 
-    size_t intersections;   // number of intersections of the
-                            // edge and real surface
 
-    vs_vec3 dot;            // average calculated value
-} vs_solution;
-
-// if at leas one cv is shared, return true
-static bool vs_solution_sharedcv(vs_solution a, vs_solution b){
-    return(
-            a.cvi[0] == b.cvi[0] ||
-            a.cvi[0] == b.cvi[1] ||
-            a.cvi[1] == b.cvi[0] ||
-            a.cvi[1] == b.cvi[1]
-    );
+vs_edge vs_edge_init(uint8_t from, uint8_t to){
+    vs_edge ret;
+    ret.from = from;
+    ret.to = to;
+    ret.valid = true;   // valid by default
+    
+    return ret;
 }
 
 
@@ -182,6 +180,50 @@ static inline float scalar_diff3(vs_vec3 a, vs_vec3 b){
             a[2]-b[2]
     );
 }
+
+
+
+
+
+/* --------------------------------------------
+    Equation solving (dot on the edge)
+-------------------------------------------- */
+
+typedef struct {
+    size_t cvi[2];          // cube vertex index; start and end of 
+                            // the fragment where equation was solved
+
+    size_t intersections;   // number of intersections of the
+                            // edge and real surface
+
+    vs_vec3 dot;            // average calculated value
+} vs_solution;
+
+// if at leas one cv is shared, return true
+static bool vs_solution_sharedcv(vs_solution a, vs_solution b){
+    return(
+            a.cvi[0] == b.cvi[0] ||
+            a.cvi[0] == b.cvi[1] ||
+            a.cvi[1] == b.cvi[0] ||
+            a.cvi[1] == b.cvi[1]
+    );
+}
+
+// if solutions share same cube face
+static bool vs_solution_sharedcf(vs_solution a, vs_solution b, float prec){
+    return(
+        ( vs_cmpf(a.dot[0],0.0f,prec) && vs_cmpf(b.dot[0],0.0f,prec) ) ||
+        ( vs_cmpf(a.dot[0],1.0f,prec) && vs_cmpf(b.dot[0],1.0f,prec) ) ||
+        
+        ( vs_cmpf(a.dot[1],0.0f,prec) && vs_cmpf(b.dot[1],0.0f,prec) ) ||
+        ( vs_cmpf(a.dot[1],1.0f,prec) && vs_cmpf(b.dot[1],1.0f,prec) ) ||
+
+        ( vs_cmpf(a.dot[2],0.0f,prec) && vs_cmpf(b.dot[2],0.0f,prec) ) ||
+        ( vs_cmpf(a.dot[2],1.0f,prec) && vs_cmpf(b.dot[2],1.0f,prec) )
+    );
+}
+
+
 
 
 
@@ -752,6 +794,80 @@ static void dots_triang(
 
 
 }
+
+
+
+static void graph_triang(
+        vs_voxelsolve_data * data,  // out
+        vs_vec3 start,              // offset added after triangle detected
+        vs_solution * sol,          // solutions 
+        size_t sol_len,       
+        vs_voxelsolve_con con
+        )
+{
+
+    /*
+        Completely new key idea. 
+    
+        All dots are located on the edges of the cube;
+        If everything's is correct, we can build edges that describe intersection;
+        These edges will ALWAYS be located on the cube faces (not inside). 
+    
+        So, first step is to define edges. Graph is defined as oriented, BUT
+        every edge is oriented in both sides at a time.
+    */
+    vs_edge edges[24];
+    size_t edgec = 0;
+    /*
+        CALCULATING EDGES:
+        For each dot, we look for neighbour dots, located on the same face;
+    */
+    for(size_t i=0; i<sol_len; ++i){
+        
+        bool found = false;
+        // check neighbour-voxel dots 
+        for(size_t j=0; j<sol_len; ++j){
+            if(i==j) continue; // do not connect dot with itself
+            
+            if( !vs_solution_sharedcf(sol[i],sol[j],con.prec) ) continue;
+            
+            // add new edge 
+            if( vs_solution_sharedcv(sol[i],sol[j]) ){
+                edges[edgec] = vs_edge_init(i,j);
+                edgec++;
+                found = true;
+                //break;
+                /* TODO: maybe should check edge */
+            }
+
+        }
+
+        // check non-neighbour-voxel dots (only if previous step missed) 
+        if(!found) for(size_t j=0; j<sol_len; ++j){
+            if(i==j) continue; // do not connect dot with itself
+            
+            if( !vs_solution_sharedcf(sol[i],sol[j],con.prec) ) continue;
+            
+            // add new edge 
+            if( vs_solution_sharedcv(sol[i],sol[j]) ){
+                edges[edgec] = vs_edge_init(i,j);
+                edgec++;
+            }
+
+        }
+    }
+
+
+
+
+
+}
+
+
+
+
+
+
 
 
 
