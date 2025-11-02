@@ -49,7 +49,7 @@ typedef struct {
     float * farg;
     size_t fargc;
     float f_threshold;  // value where line is going
-    float prec;         // precision of vector operations
+float prec;         // precision of vector operations
                         // usually don't affect performance but
                         // takes part in float/vector comparisons
 
@@ -192,7 +192,7 @@ static inline float scalar_diff3(vs_vec3 a, vs_vec3 b){
 typedef struct {
     size_t cvi[2];          // cube vertex index; start and end of 
                             // the fragment where equation was solved
-
+    
     size_t intersections;   // number of intersections of the
                             // edge and real surface
 
@@ -680,7 +680,7 @@ static void dots_triang(
     if(sol_len < 3) return;
 
     // simpliest variant of the algorythm *(add only 1 trangle)
-    else if(sol_len == 3) {
+    /*else if(sol_len == 3) {
         add_triangle(data, start, sol[0].dot, sol[1].dot, sol[2].dot, con);
         return;
     }
@@ -691,7 +691,7 @@ static void dots_triang(
         add_triangle(data, start, sol[0].dot, sol[1].dot, sol[2].dot, con);
         add_triangle(data, start, sol[1].dot, sol[2].dot, sol[3].dot, con);
         return;
-    }
+    }*/
     
     //if(sol_len > 4) printf("\t[sol_len(%d) > 4!]\n",sol_len);
     if(sol_len > 3){
@@ -797,45 +797,301 @@ static void dots_triang(
 
 
 
+
+
+
+#define MAXV 12
+#define MAXE 36
+#define MAXCYCLES 1024
+#define MAXPATH 16
+
+typedef struct {
+    uint32_t adj[MAXV][MAXV];            // input adjacency matrix (0/1)
+    uint32_t path[MAXPATH];              
+    bool used[MAXV];
+    uint32_t cycles[MAXCYCLES][MAXPATH]; 
+    uint32_t cycle_len[MAXCYCLES];       // length of each one
+    uint32_t cycle_count;                // number of cycles found
+    uint32_t v;                          // node count in graph
+} vs_graph;
+
+
+// check if cycle (stored in g->path[0..len-1]) has any chord
+static bool is_chordless(vs_graph * g, uint32_t len) {
+    for (uint32_t i = 0; i < len; i++) {
+        uint32_t u = g->path[i];
+        for (uint32_t j = i + 2; j < len; j++) {
+            uint32_t v = g->path[j];
+            if (i == 0 && j == len - 1) continue; // skip edge that closes cycle
+            if (g->adj[u][v]) return false; // chord found
+        }
+    }
+    return true;
+}
+
+
+// normalize cycle: rotate so minimal vertex is first and choose lexicographically
+// smaller among the two directions. src/dst are uint32_t arrays.
+void normalize_cycle(const uint32_t *src, uint32_t len, uint32_t *dst) {
+    if (len == 0) return;
+    // find minimal vertex and its position
+    uint32_t minv = src[0];
+    uint32_t minpos = 0;
+    for (uint32_t i = 1; i < len; i++) {
+        if (src[i] < minv) { minv = src[i]; minpos = i; }
+    }
+
+    // build two rotations: forward and reversed
+    uint32_t rot1[MAXPATH];
+    uint32_t rot2[MAXPATH];
+    for (uint32_t i = 0; i < len; i++) {
+        rot1[i] = src[(minpos + i) % len];
+        // reversed: go backwards from minpos
+        rot2[i] = src[(minpos + len - i) % len];
+    }
+
+    // choose lexicographically smaller
+    for (uint32_t i = 0; i < len; i++) {
+        if (rot1[i] < rot2[i]) { memcpy(dst, rot1, len * sizeof(uint32_t)); return; }
+        if (rot1[i] > rot2[i]) { memcpy(dst, rot2, len * sizeof(uint32_t)); return; }
+    }
+    // they are equal
+    memcpy(dst, rot1, len * sizeof(uint32_t));
+}
+
+
+bool is_duplicate(vs_graph * g, const uint32_t *cyc, uint32_t len) {
+    for (uint32_t c = 0; c < g->cycle_count; c++) {
+        if (g->cycle_len[c] != len) continue;
+        bool same = true;
+        for (uint32_t i = 0; i < len; i++) {
+            if (g->cycles[c][i] != cyc[i]) { same = false; break; }
+        }
+        if (same) return true;
+    }
+    return false;
+}
+
+
+// DFS to find all simple cycles that return to 'start'. path[] holds current path.
+// depth is current length of path (1..).
+void dfs(vs_graph * g, uint32_t start, uint32_t current, int32_t parent, uint32_t depth) {
+    if (depth >= MAXPATH) return; // safety
+
+    for (uint32_t nb = 0; nb < g->v; nb++) {
+        if (!g->adj[current][nb]) continue;
+        if ((int32_t)nb == parent) continue;
+
+        if (nb == start && depth >= 3) {
+            // found a cycle of length == depth
+            if (!is_chordless(g, depth)) continue;
+
+            uint32_t norm[MAXPATH];
+            normalize_cycle(g->path, depth, norm);
+
+            if (!is_duplicate(g, norm, depth)) {
+                if (g->cycle_count < MAXCYCLES) {
+                    // zero out storage beyond len to avoid garbage when printing
+                    for (uint32_t k = 0; k < MAXPATH; k++) g->cycles[g->cycle_count][k] = 0;
+                    memcpy(g->cycles[g->cycle_count], norm, depth * sizeof(uint32_t));
+                    g->cycle_len[g->cycle_count] = depth;
+                    g->cycle_count++;
+                }
+            }
+            continue;
+        }
+
+        if (g->used[nb]) continue;
+
+        // go deeper
+        g->used[nb] = true;
+        g->path[depth] = nb; // safe because depth < MAXPATH checked above
+        dfs(g, start, nb, (int32_t)current, depth + 1);
+        g->used[nb] = false;
+    }
+}
+
+
+static void graph_getloops(vs_graph * g){
+    g->cycle_count = 0;
+
+    for (uint32_t s = 0; s < g->v; s++) {
+        // clear used[] only for first g->v entries
+        for (uint32_t i = 0; i < g->v; i++) g->used[i] = false;
+        g->used[s] = true;
+        g->path[0] = s;
+        dfs(g, s, s, -1, 1);
+    }
+
+    // correct print: print found cycles, not g->v
+    printf("Chordless cycles found: %u\n", g->cycle_count);
+    for (uint32_t i = 0; i < g->cycle_count; i++) {
+        printf("(");
+        for (uint32_t j = 0; j < g->cycle_len[i]; j++) {
+            printf("%u ", g->cycles[i][j]);
+        }
+        printf(")\n");
+    }
+    printf("\n");
+}
+
+
+
+/*
+    Assume that cycle is approx planar and simple
+*/
+/*static void cycle_triangulate(
+        const uint32_t * cycle,
+        uint32_t len, 
+        uint32_t * out,
+        uint32_t * out_len
+){ 
+    *out_len = 0;
+
+    
+    memset(out, 0, sizeof(out)); // fiil with negative values 
+    
+    // buffer for the current step;
+    // will shrink with each step
+    uint32_t len_current = len;
+    uint32_t cycle_current[12];
+    memcpy(cycle_current, cycle, sizeof(cycle_current));
+
+    // buffer for the next step
+    uint32_t len_next = len;
+    uint32_t cycle_next[12];
+    memcpy(cycle_next, cycle, sizeof(cycle_next));
+
+    
+
+    while(len_next > 0){
+        // initiator nodes will not be included in the next loop
+       
+        // next -> current
+        memcpy(cycle_current, cycle_next, sizeof(cycle_next));
+        len_current = len_next;
+    
+        len_next = 0; // clear next cycle
+
+        for(uint32_t i=0; i<len_current; ++i){
+            // form cycle for next step
+            if(i%2 != 0){
+                cycle_next[len_next] = cycle_current[i];
+                len_next++;
+                continue;
+            }
+
+            // i-node(0,2,4..) is gonna be initiative node to make a triangle
+            // neighbour 0 and 1 nodes to build a triangle 
+            // TODO: be careful with negative values and uint
+            uint32_t n0 = ((int)i-1>0)*(i-1) + ((int)i-1<0)*len;
+            uint32_t n1 = ((int)i+1<len-1)*(i+1) + ((int)i+1>len-1)*0;
+
+            // add triangle
+            out[*out_len+0] = cycle_current[n0];
+            out[*out_len+1] = cycle_current[i];
+            out[*out_len+2] = cycle_current[n1];
+            *out_len+=3;
+            //printf("\t_added triangle by cycle\n");
+        }
+    }
+}
+*/
+
+static void cycle_triangulate(
+        const uint32_t * cycle,
+        uint32_t len, 
+        uint32_t * out,
+        uint32_t * out_len
+){
+    *out_len = 0;
+    if (len < 3) return; // нельзя триангулировать
+
+    // Fan triangulation: (0, i, i+1)
+    for (uint32_t i = 1; i + 1 < len; ++i) {
+        out[*out_len + 0] = cycle[0];
+        out[*out_len + 1] = cycle[i];
+        out[*out_len + 2] = cycle[i + 1];
+        *out_len += 3;
+    }
+}
+
+
+
 static void graph_triang(
         vs_voxelsolve_data * data,  // out
         vs_vec3 start,              // offset added after triangle detected
         vs_solution * sol,          // solutions 
         size_t sol_len,       
         vs_voxelsolve_con con
-        )
+) 
 {
+    /*
+        Exception for 3 and 4 vertices.
+
+        There's possibility to avoid complex calculations and
+        simply return 1 or 2 triangles.
+    */
+    float prec = con.prec; 
+    printf("\nSOLUTIONS %d\n",sol_len);
+
+
+    if(sol_len == 2 || sol_len==1) printf("AAAAAAAAAAAAAAAAAAAAAAAAAAA\n");
+    // unable to build figure
+    if(sol_len < 3) return;
+
+    // simpliest variant of the algorythm *(add only 1 trangle)
+    /*else if(sol_len == 3) {
+        add_triangle(data, start, sol[0].dot, sol[1].dot, sol[2].dot, con);
+        return;
+    }  
+
+    else if(sol_len == 4) {
+        add_triangle(data, start, sol[0].dot, sol[1].dot, sol[2].dot, con);
+        add_triangle(data, start, sol[1].dot, sol[2].dot, sol[3].dot, con);
+        return;
+    }*/
+    
+    //return;
+
+
 
     /*
         Completely new key idea. 
     
         All dots are located on the edges of the cube;
-        If everything's is correct, we can build edges that describe intersection;
+        If everything's is correct, we can build edges that
+        describe intersection;
         These edges will ALWAYS be located on the cube faces (not inside). 
+    */
     
+    // first init
+    vs_graph graph;
+    graph.cycle_count = 0;
+    graph.v = sol_len;
+    memset(graph.adj, 0, sizeof(uint32_t)*MAXV*MAXV);
+
+    /*
+        MAKE THE GRAPH MATRIX:
+        For each dot, we look for neighbour dots, located on the same face;
+
         So, first step is to define edges. Graph is defined as oriented, BUT
         every edge is oriented in both sides at a time.
-    */
-    vs_edge edges[24];
-    size_t edgec = 0;
-    /*
-        CALCULATING EDGES:
-        For each dot, we look for neighbour dots, located on the same face;
     */
     for(size_t i=0; i<sol_len; ++i){
         
         bool found = false;
         // check neighbour-voxel dots 
-        for(size_t j=0; j<sol_len; ++j){
-            if(i==j) continue; // do not connect dot with itself
+        for(size_t j=i+1; j<sol_len; ++j){
+            //if(i==j) continue; // do not connect dot with itself
             
             if( !vs_solution_sharedcf(sol[i],sol[j],con.prec) ) continue;
             
             // add new edge 
             if( vs_solution_sharedcv(sol[i],sol[j]) ){
-                edges[edgec] = vs_edge_init(i,j);
-                edgec++;
                 found = true;
+                printf("added edge %d-%d\n",i,j);
+                graph.adj[i][j] = graph.adj[j][i] = 1;
                 //break;
                 /* TODO: maybe should check edge */
             }
@@ -843,23 +1099,66 @@ static void graph_triang(
         }
 
         // check non-neighbour-voxel dots (only if previous step missed) 
-        if(!found) for(size_t j=0; j<sol_len; ++j){
-            if(i==j) continue; // do not connect dot with itself
+        if(!found) for(size_t j=i+1; j<sol_len; ++j){
+            //if(i==j) continue; // do not connect dot with itself
             
             if( !vs_solution_sharedcf(sol[i],sol[j],con.prec) ) continue;
             
             // add new edge 
-            if( vs_solution_sharedcv(sol[i],sol[j]) ){
-                edges[edgec] = vs_edge_init(i,j);
-                edgec++;
+            if( !vs_solution_sharedcv(sol[i],sol[j]) ){
+                graph.adj[i][j] = graph.adj[j][i] = 1;
+                printf("added edge %d-%d\n",i,j);
             }
-
         }
     }
+    
+    graph_getloops(&graph);
+   
 
 
+    /*
+        When all cycles found, triangulate each cycle separately.
+        In that way, all cycles stay planar to 
+        triangulate them in more classical way.
+    */
+    
+    // each cycle
+    for(uint32_t c=0; c<graph.cycle_count; ++c){
+        uint32_t * cycle = graph.cycles[c];
+        uint32_t cycle_len = graph.cycle_len[c];
+        
+        uint32_t triangles[36];
+        uint32_t triangles_len;
+
+        // get all triangles
+        cycle_triangulate(
+                cycle,
+                cycle_len,
+                triangles,
+                &triangles_len
+        );
+        
+        for(uint32_t t=0; t<triangles_len; t+=3){
+            printf("+tri [%d %d %d]\n", 
+                triangles[t+0],
+                triangles[t+1],
+                triangles[t+2]
+            );
+            add_triangle(
+                    data,
+                    start,
+
+                    sol[ triangles[t+0] ].dot,
+                    sol[ triangles[t+1] ].dot,
+                    sol[ triangles[t+2] ].dot,
+
+                    con
+            );
+
+        }
 
 
+    }
 
 }
 
@@ -877,6 +1176,7 @@ static void graph_triang(
 /* ----------------------------------------
     Main algorythm    
 ---------------------------------------- */
+
 
 static inline size_t voxel_solve(
         vs_vec3 start,
@@ -906,7 +1206,7 @@ static inline size_t voxel_solve(
             ++dots_len;
         }
     }
-    dots_triang(data, start, dots, dots_len, con);
+    graph_triang(data, start, dots, dots_len, con);
     //printf("triangulated. vertices:%d\n", data->vertex_len);  
     
 }
