@@ -540,12 +540,15 @@ static void edge_solve(
 static size_t add_vertex( 
         vs_voxelsolve_data * data,
         vs_vec3 v,
-        float prec
+        float prec,
+        uint32_t check_len
         )
 {
     // compare every existing vertex with new one;
     // if close enough, merge with old vertex.
-    for(size_t i=0; i<data->vertex_len; ++i){
+    uint32_t check_start = (data->vertex_len>check_len)
+        *(data->vertex_len*check_len);
+    for(size_t i=check_start; i<data->vertex_len; ++i){
         if(vs_vec3_cmp(v,data->vertex[i],prec)){
             return i;
         }
@@ -597,9 +600,9 @@ static int32_t add_triangle(
     );*/
 
     if(
-        vs_vec3_cmp(a,b, 0.01f) ||
-        vs_vec3_cmp(b,c, 0.01f) ||
-        vs_vec3_cmp(c,a, 0.01f)
+        vs_vec3_cmp(a,b, 0.00001f) ||
+        vs_vec3_cmp(b,c, 0.00001f) ||
+        vs_vec3_cmp(c,a, 0.00001f)
     ) {
         printf("\tunnatural triangle intersection!\n");
         return -1;
@@ -607,11 +610,11 @@ static int32_t add_triangle(
     
     
     
+    uint32_t check_len = con.vox_len[1] * con.vox_len[2] * 6;
 
-
-    size_t ai = add_vertex(data,a_real, con.prec);
-    size_t bi = add_vertex(data,b_real, con.prec);
-    size_t ci = add_vertex(data,c_real, con.prec);
+    size_t ai = add_vertex(data,a_real, con.prec, check_len);
+    size_t bi = add_vertex(data,b_real, con.prec, check_len);
+    size_t ci = add_vertex(data,c_real, con.prec, check_len);
 
 
 
