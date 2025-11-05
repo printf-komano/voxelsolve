@@ -119,9 +119,9 @@ void VS_VEC3_SET(vs_vec3 to, const vs_vec3 from){
 // compares two vec3 with certain precision
 bool vs_vec3_cmp(vs_vec3 a, vs_vec3 b, float prec){
     return(
-        fabsf(a[0] - b[0]) <= prec &&
-        fabsf(a[1] - b[1]) <= prec && 
-        fabsf(a[2] - b[2]) <= prec 
+        fabsf(a[0] - b[0]) < prec &&
+        fabsf(a[1] - b[1]) < prec &&
+        fabsf(a[2] - b[2]) < prec
     );
 }
 
@@ -210,7 +210,8 @@ static bool vs_solution_sharedcv(vs_solution a, vs_solution b){
 }
 
 // if solutions share same cube face
-static bool vs_solution_sharedcf(vs_solution a, vs_solution b, float prec){
+static bool vs_solution_sharedcf(vs_solution a, vs_solution b){
+    float prec = 0.0001f;
     return(
         ( vs_cmpf(a.dot[0],0.0f,prec) && vs_cmpf(b.dot[0],0.0f,prec) ) ||
         ( vs_cmpf(a.dot[0],1.0f,prec) && vs_cmpf(b.dot[0],1.0f,prec) ) ||
@@ -572,16 +573,6 @@ static int32_t add_triangle(
     vs_voxelsolve_con con
     )
 {
-    if(
-        vs_vec3_cmp(a,b, con.prec) ||
-        vs_vec3_cmp(b,c, con.prec) ||
-        vs_vec3_cmp(c,a, con.prec)
-    ) {
-        printf("\tunnatural triangle intersection!\n");
-        return -1;
-    }
-    
-    
     vs_vec3 a_real = {
         a[0] * con.vscale + start[0],
         a[1] * con.vscale + start[1],
@@ -599,11 +590,31 @@ static int32_t add_triangle(
     };
 
 
+    /*printf("added tri (%f %f %f) (%f %f %f) (%f %f %f)\n",
+        a[0], a[1], a[2],
+        b[0], b[1], b[2],
+        c[0], c[1], c[2]
+    );*/
+
+    if(
+        vs_vec3_cmp(a,b, 0.01f) ||
+        vs_vec3_cmp(b,c, 0.01f) ||
+        vs_vec3_cmp(c,a, 0.01f)
+    ) {
+        printf("\tunnatural triangle intersection!\n");
+        return -1;
+    }
+    
+    
+    
+
+
     size_t ai = add_vertex(data,a_real, con.prec);
     size_t bi = add_vertex(data,b_real, con.prec);
     size_t ci = add_vertex(data,c_real, con.prec);
 
-    
+
+
     size_t offt = data->tris_len;
     data->tris[offt][0] = ai;
     data->tris[offt][1] = bi;
@@ -924,7 +935,7 @@ static void graph_getloops(vs_graph * g){
     }
 
     // correct print: print found cycles, not g->v
-    printf("Chordless cycles found: %u\n", g->cycle_count);
+    /*printf("Chordless cycles found: %u\n", g->cycle_count);
     for (uint32_t i = 0; i < g->cycle_count; i++) {
         printf("(");
         for (uint32_t j = 0; j < g->cycle_len[i]; j++) {
@@ -932,7 +943,7 @@ static void graph_getloops(vs_graph * g){
         }
         printf(")\n");
     }
-    printf("\n");
+    printf("\n");*/
 }
 
 
@@ -1017,6 +1028,51 @@ static void cycle_triangulate(
 }
 
 
+/*static void cycle_triangulate(
+        const uint32_t * cycle,
+        uint32_t len, 
+        uint32_t * out,
+        uint32_t * out_len
+){ 
+    *out_len = 0;
+    if (len < 3) return;
+
+    uint32_t cycle_current[12];
+    uint32_t cycle_next[12];
+    uint32_t len_current = len;
+    uint32_t len_next = len;
+
+    memcpy(cycle_current, cycle, len * sizeof(uint32_t));
+
+    while (len_current > 3) {
+        len_next = 0;
+
+        for (uint32_t i = 0; i < len_current; ++i) {
+            if (i % 2 != 0) {
+                cycle_next[len_next++] = cycle_current[i];
+                continue;
+            }
+            uint32_t n0 = (i + len_current - 1) % len_current;
+            uint32_t n1 = (i + 1) % len_current;
+            out[*out_len + 0] = cycle_current[n0];
+            out[*out_len + 1] = cycle_current[i];
+            out[*out_len + 2] = cycle_current[n1];
+            *out_len += 3;
+        }
+
+        memcpy(cycle_current, cycle_next, len_next * sizeof(uint32_t));
+        len_current = len_next;
+    }
+
+    // последний треугольник
+    if (len_current == 3) {
+        out[*out_len + 0] = cycle_current[0];
+        out[*out_len + 1] = cycle_current[1];
+        out[*out_len + 2] = cycle_current[2];
+        *out_len += 3;
+    }
+}*/
+
 
 static void graph_triang(
         vs_voxelsolve_data * data,  // out
@@ -1032,16 +1088,16 @@ static void graph_triang(
         There's possibility to avoid complex calculations and
         simply return 1 or 2 triangles.
     */
-    float prec = con.prec; 
-    printf("\nSOLUTIONS %d\n",sol_len);
+    float prec = con.prec;
 
 
-    if(sol_len == 2 || sol_len==1) printf("AAAAAAAAAAAAAAAAAAAAAAAAAAA\n");
+    //if(sol_len == 2 || sol_len==1) printf("AAAAAAAAAAAAAAAAAAAAAAAAAAA\n");
     // unable to build figure
     if(sol_len < 3) return;
-
+    
+    
     // simpliest variant of the algorythm *(add only 1 trangle)
-    /*else if(sol_len == 3) {
+    else if(sol_len == 3) {
         add_triangle(data, start, sol[0].dot, sol[1].dot, sol[2].dot, con);
         return;
     }  
@@ -1050,11 +1106,19 @@ static void graph_triang(
         add_triangle(data, start, sol[0].dot, sol[1].dot, sol[2].dot, con);
         add_triangle(data, start, sol[1].dot, sol[2].dot, sol[3].dot, con);
         return;
-    }*/
+    }
     
     //return;
 
-
+    /*printf("\n[%f %f %f]\tSOLUTIONS %d ______________\n",
+            start[0],
+            start[1],
+            start[2],
+            sol_len
+    );
+    for(uint32_t i=0; i<sol_len; ++i){
+        printf("\t|%d  %f %f %f\n", i,sol[i].dot[0],sol[i].dot[1],sol[i].dot[2]);
+    }*/
 
     /*
         Completely new key idea. 
@@ -1085,12 +1149,12 @@ static void graph_triang(
         for(size_t j=i+1; j<sol_len; ++j){
             //if(i==j) continue; // do not connect dot with itself
             
-            if( !vs_solution_sharedcf(sol[i],sol[j],con.prec) ) continue;
+            if( !vs_solution_sharedcf(sol[i],sol[j]) ) continue;
             
             // add new edge 
             if( vs_solution_sharedcv(sol[i],sol[j]) ){
                 found = true;
-                printf("added edge %d-%d\n",i,j);
+                //printf("added edge %d-%d\n",i,j);
                 graph.adj[i][j] = graph.adj[j][i] = 1;
                 //break;
                 /* TODO: maybe should check edge */
@@ -1099,15 +1163,15 @@ static void graph_triang(
         }
 
         // check non-neighbour-voxel dots (only if previous step missed) 
-        if(!found) for(size_t j=i+1; j<sol_len; ++j){
+        if(true) for(size_t j=i+1; j<sol_len; ++j){
             //if(i==j) continue; // do not connect dot with itself
             
-            if( !vs_solution_sharedcf(sol[i],sol[j],con.prec) ) continue;
+            if( !vs_solution_sharedcf(sol[i],sol[j]) ) continue;
             
             // add new edge 
             if( !vs_solution_sharedcv(sol[i],sol[j]) ){
                 graph.adj[i][j] = graph.adj[j][i] = 1;
-                printf("added edge %d-%d\n",i,j);
+                //printf("added edge %d-%d\n",i,j);
             }
         }
     }
@@ -1127,6 +1191,39 @@ static void graph_triang(
         uint32_t * cycle = graph.cycles[c];
         uint32_t cycle_len = graph.cycle_len[c];
         
+
+        if(cycle_len==3){
+            add_triangle(
+                    data,
+                    start,
+                    sol[ cycle[0] ].dot,
+                    sol[ cycle[1] ].dot,
+                    sol[ cycle[2] ].dot,
+                    con
+            );
+            continue;
+        }
+        /*else if(cycle_len==4){
+            add_triangle(
+                    data,
+                    start,
+                    sol[ cycle[0] ].dot,
+                    sol[ cycle[1] ].dot,
+                    sol[ cycle[2] ].dot,
+                    con
+            );
+            add_triangle(
+                    data,
+                    start,
+                    sol[ cycle[1] ].dot,
+                    sol[ cycle[2] ].dot,
+                    sol[ cycle[3] ].dot,
+                    con
+            );
+
+            continue;
+        }*/
+
         uint32_t triangles[36];
         uint32_t triangles_len;
 
@@ -1139,11 +1236,22 @@ static void graph_triang(
         );
         
         for(uint32_t t=0; t<triangles_len; t+=3){
-            printf("+tri [%d %d %d]\n", 
+            if(
+
+            vs_solution_sharedcf(sol[triangles[t+0]], sol[triangles[t+1]]) &&
+            vs_solution_sharedcf(sol[triangles[t+1]], sol[triangles[t+2]]) &&
+            vs_solution_sharedcf(sol[triangles[t+2]], sol[triangles[t+0]]) 
+            ){
+                printf("__________________________\n");
+                continue;
+            }
+
+            /*printf("[c:%d] +tri [%d %d %d]\n",
+                cycle_len,
                 triangles[t+0],
                 triangles[t+1],
                 triangles[t+2]
-            );
+            );*/
             add_triangle(
                     data,
                     start,
@@ -1156,9 +1264,9 @@ static void graph_triang(
             );
 
         }
-
-
     }
+
+    //printf("s: %d\t c:%d\n\n", sol_len, graph.cycle_count);
 
 }
 
@@ -1202,8 +1310,20 @@ static inline size_t voxel_solve(
         );
         // if found, add to other dots
         if(sol.intersections > 0){
-            dots[dots_len] = sol;
-            ++dots_len;
+            bool add = true;
+            // check for duplicates
+            for(size_t j=0; j<dots_len; ++j){
+                if(
+                        vs_vec3_cmp(dots[i].dot,dots[j].dot,0.0001f)
+                ){
+                    add = false; break;
+                }
+            }
+            
+            if(add){
+                dots[dots_len] = sol;
+                ++dots_len;
+            }
         }
     }
     graph_triang(data, start, dots, dots_len, con);
